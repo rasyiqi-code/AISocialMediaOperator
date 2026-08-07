@@ -2977,6 +2977,11 @@
           window.location.href = "https://x.com/home";
           return { success: true, totalProcessed: count };
         }
+        if (window.scrollY < 200) {
+          console.log("[XInteraction] Reloaded home timeline. Scrolling down first to reveal fresh tweets...");
+          window.scrollBy({ top: 600, behavior: "smooth" });
+          await randomDelay(2, 3.5);
+        }
         const tweets = scanXTweets(40);
         let target = tweets.find((t) => {
           if (!t.text || t.text.length < 10) return false;
