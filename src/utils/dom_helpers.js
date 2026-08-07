@@ -220,24 +220,33 @@ function isDraftJsEditor(element) {
  * the blocks, which never reaches EditorState and so the Reply button stays
  * disabled. Fall back to a direct node scan if the attribute selector differs.
  */
+/**
+ * Place the caret at the end of a contenteditable editor. For Draft.js editors
+ * (X reply composer) the caret MUST be placed inside the innermost Draft text span
+ * (`[data-offset-key]` / `[data-text="true"]`), not on the outer editor node.
+ */
 function placeCaretAtEnd(element) {
   try {
     if (!element || !element.isConnected) return;
     element.focus();
 
-    // Pick a target that is guaranteed connected. Start with the editor node
-    // itself; if it exposes a Draft block tree, descend into the last block so
-    // native edits land inside a block (and avoid "range isn't in document"
-    // errors by skipping any node that is detached).
     let target = element;
-    if (element.closest && element.closest('.DraftEditor-root') && element.querySelector('[data-contents="true"]')) {
-      const container = element.querySelector('[data-contents="true"]');
-      const blocks = Array.from(container.querySelectorAll('[data-block="true"]'));
-      if (blocks.length) {
-        target = blocks[blocks.length - 1];
-        if (!target.isConnected) target = element;
+    const root = element.closest ? (element.closest('.DraftEditor-root') || element.closest('.DraftEditor-editorContainer')) : null;
+    const scope = root || element;
+
+    if (scope.querySelector && scope.querySelector('[data-contents="true"]')) {
+      const offsetSpans = Array.from(scope.querySelectorAll('[data-offset-key]'));
+      if (offsetSpans.length) {
+        target = offsetSpans[offsetSpans.length - 1];
+        const textSpan = target.querySelector('[data-text="true"]');
+        if (textSpan && textSpan.isConnected) target = textSpan;
+      } else {
+        const blocks = Array.from(scope.querySelectorAll('[data-block="true"]'));
+        if (blocks.length) target = blocks[blocks.length - 1];
       }
     }
+
+    if (!target || !target.isConnected) target = element;
 
     const range = document.createRange();
     range.selectNodeContents(target);
@@ -249,27 +258,42 @@ function placeCaretAtEnd(element) {
 }
 
 /**
- * Draft.js-safe insertion via paste simulation. Draft.js handles `paste` by
- * reading clipboardData and committing the text into its EditorState — the only
- * synthetic path that reliably enables the Reply button (unlike execCommand or
- * DOM writes, which leave EditorState empty so the placeholder never clears).
+ * Hide the Draft.js placeholder container so it never overlaps typed text.
+ */
+function hideDraftJsPlaceholder(element) {
+  try {
+    const root = element.closest ? (element.closest('.DraftEditor-root') || element.closest('[data-testid*="RichTextInputContainer"]') || element.parentElement) : element.parentElement;
+    if (root) {
+      const placeholders = root.querySelectorAll('.DraftEditor-placeholder-root, [id^="placeholder-"], div[class*="placeholder"]');
+      placeholders.forEach(p => {
+        p.style.display = 'none';
+        p.style.visibility = 'hidden';
+        p.style.opacity = '0';
+      });
+    }
+  } catch (e) {}
+}
+
+/**
+ * Draft.js-safe insertion via paste simulation.
  */
 const insertDraftJsPaste = (element, text) => {
   placeCaretAtEnd(element);
   try {
     const dt = new DataTransfer();
     dt.setData('text/plain', text);
-    const html = text
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .split('\n')
-      .map(line => `<div>${line}</div>`)
-      .join('');
-    dt.setData('text/html', html);
 
-    const evt = new Event('paste', { bubbles: true, cancelable: true });
-    Object.defineProperty(evt, 'clipboardData', { get: () => dt });
+    let evt;
+    try {
+      evt = new ClipboardEvent('paste', {
+        bubbles: true,
+        cancelable: true,
+        clipboardData: dt
+      });
+    } catch (err) {
+      evt = new Event('paste', { bubbles: true, cancelable: true });
+      Object.defineProperty(evt, 'clipboardData', { get: () => dt, configurable: true });
+    }
     element.dispatchEvent(evt);
   } catch (e) {}
 };
@@ -320,12 +344,6 @@ function dispatchDraftBeforeInput(element, inputType, data = null) {
 
 /**
  * Draft.js-safe insertion for X's reply composer.
- *
- * The decisive detail is CARET PLACEMENT + native insertion: Draft.js only
- * commits edits when the selection sits INSIDE one of its `[data-block]` elements.
- * Preserving the `[data-block]` DOM tree (by using selectAll+delete instead of
- * innerHTML='') and placing caret inside the block allows native `execCommand('insertText')`
- * to update Draft.js EditorState and enable the Reply button (aria-disabled="false").
  */
 async function insertDraftJsText(element, text) {
   placeCaretAtEnd(element);
@@ -338,7 +356,7 @@ async function insertDraftJsText(element, text) {
 
   placeCaretAtEnd(element);
 
-  // Primary: Native execCommand('insertText') inside the block
+  // Primary: Native execCommand('insertText') inside span[data-offset-key]
   try {
     const lines = text.split('\n');
     lines.forEach((line, i) => {
@@ -358,6 +376,9 @@ async function insertDraftJsText(element, text) {
     element.dispatchEvent(new InputEvent('input', { bubbles: true, cancelable: true, inputType: 'insertText' }));
   } catch (e) {}
 
+  // Hide overlapping placeholder text visually
+  hideDraftJsPlaceholder(element);
+
   if (hasDraftBlocks(element)) return true;
 
   // Fallback 1: dispatchDraftBeforeInput with mock dataTransfer
@@ -367,6 +388,7 @@ async function insertDraftJsText(element, text) {
     document.execCommand('insertText', false, ' ');
     document.execCommand('delete', false, null);
     element.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
+    hideDraftJsPlaceholder(element);
   } catch (e) {}
 
   if (hasDraftBlocks(element)) return true;
@@ -374,6 +396,7 @@ async function insertDraftJsText(element, text) {
   // Fallback 2: paste simulation
   insertDraftJsPaste(element, text);
   await new Promise(r => setTimeout(r, 100));
+  hideDraftJsPlaceholder(element);
 
   return (element.textContent || '').trim().length > 0;
 }

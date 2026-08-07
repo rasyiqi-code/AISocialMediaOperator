@@ -151,14 +151,20 @@
       if (!element || !element.isConnected) return;
       element.focus();
       let target = element;
-      if (element.closest && element.closest(".DraftEditor-root") && element.querySelector('[data-contents="true"]')) {
-        const container = element.querySelector('[data-contents="true"]');
-        const blocks = Array.from(container.querySelectorAll('[data-block="true"]'));
-        if (blocks.length) {
-          target = blocks[blocks.length - 1];
-          if (!target.isConnected) target = element;
+      const root = element.closest ? element.closest(".DraftEditor-root") || element.closest(".DraftEditor-editorContainer") : null;
+      const scope = root || element;
+      if (scope.querySelector && scope.querySelector('[data-contents="true"]')) {
+        const offsetSpans = Array.from(scope.querySelectorAll("[data-offset-key]"));
+        if (offsetSpans.length) {
+          target = offsetSpans[offsetSpans.length - 1];
+          const textSpan = target.querySelector('[data-text="true"]');
+          if (textSpan && textSpan.isConnected) target = textSpan;
+        } else {
+          const blocks = Array.from(scope.querySelectorAll('[data-block="true"]'));
+          if (blocks.length) target = blocks[blocks.length - 1];
         }
       }
+      if (!target || !target.isConnected) target = element;
       const range = document.createRange();
       range.selectNodeContents(target);
       range.collapse(false);
@@ -168,15 +174,36 @@
     } catch (e) {
     }
   }
+  function hideDraftJsPlaceholder(element) {
+    try {
+      const root = element.closest ? element.closest(".DraftEditor-root") || element.closest('[data-testid*="RichTextInputContainer"]') || element.parentElement : element.parentElement;
+      if (root) {
+        const placeholders = root.querySelectorAll('.DraftEditor-placeholder-root, [id^="placeholder-"], div[class*="placeholder"]');
+        placeholders.forEach((p) => {
+          p.style.display = "none";
+          p.style.visibility = "hidden";
+          p.style.opacity = "0";
+        });
+      }
+    } catch (e) {
+    }
+  }
   var insertDraftJsPaste = (element, text) => {
     placeCaretAtEnd(element);
     try {
       const dt = new DataTransfer();
       dt.setData("text/plain", text);
-      const html = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").split("\n").map((line) => `<div>${line}</div>`).join("");
-      dt.setData("text/html", html);
-      const evt = new Event("paste", { bubbles: true, cancelable: true });
-      Object.defineProperty(evt, "clipboardData", { get: () => dt });
+      let evt;
+      try {
+        evt = new ClipboardEvent("paste", {
+          bubbles: true,
+          cancelable: true,
+          clipboardData: dt
+        });
+      } catch (err) {
+        evt = new Event("paste", { bubbles: true, cancelable: true });
+        Object.defineProperty(evt, "clipboardData", { get: () => dt, configurable: true });
+      }
       element.dispatchEvent(evt);
     } catch (e) {
     }
@@ -242,6 +269,7 @@
       element.dispatchEvent(new InputEvent("input", { bubbles: true, cancelable: true, inputType: "insertText" }));
     } catch (e) {
     }
+    hideDraftJsPlaceholder(element);
     if (hasDraftBlocks(element)) return true;
     try {
       dispatchDraftBeforeInput(element, "insertText", text);
@@ -249,11 +277,13 @@
       document.execCommand("insertText", false, " ");
       document.execCommand("delete", false, null);
       element.dispatchEvent(new Event("input", { bubbles: true, cancelable: true }));
+      hideDraftJsPlaceholder(element);
     } catch (e) {
     }
     if (hasDraftBlocks(element)) return true;
     insertDraftJsPaste(element, text);
     await new Promise((r) => setTimeout(r, 100));
+    hideDraftJsPlaceholder(element);
     return (element.textContent || "").trim().length > 0;
   }
   var simulateHumanTyping = async (element, text, speedMode = "medium") => {
