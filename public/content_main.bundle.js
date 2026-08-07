@@ -2869,6 +2869,23 @@
       };
     });
   }
+  function scanXFollowButtons() {
+    const followButtons = Array.from(document.querySelectorAll("button")).filter((btn) => {
+      const rect = btn.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) return false;
+      const testId = btn.getAttribute("data-testid") || "";
+      const ariaLabel = (btn.getAttribute("aria-label") || "").toLowerCase();
+      const text = (btn.textContent || "").trim().toLowerCase();
+      if (ariaLabel.includes("following") || ariaLabel.includes("unfollow") || text.includes("following") || text.includes("mengikuti")) {
+        return false;
+      }
+      if (testId.endsWith("-follow")) return true;
+      if (ariaLabel.startsWith("follow ") || ariaLabel === "follow") return true;
+      if (text === "follow" || text === "ikuti") return true;
+      return false;
+    });
+    return followButtons;
+  }
   var XInteraction = {
     name: "XInteraction",
     isRunning: false,
@@ -3052,24 +3069,32 @@
       this.activeTask = "follow";
       let count = 0;
       const processed = /* @__PURE__ */ new WeakSet();
+      console.log("[XInteraction] Auto-Follow started...");
       while (this.isRunning && this.activeTask === "follow") {
-        const tweets = scanXTweets(40);
-        const target = tweets.find((t) => t.followBtn && !processed.has(t.element));
-        if (target) {
-          processed.add(target.element);
+        if (!chrome.runtime?.id) {
+          this.isRunning = false;
+          break;
+        }
+        const followBtns = scanXFollowButtons().filter((btn) => !processed.has(btn));
+        console.log("[XInteraction] Follow buttons found:", followBtns.length);
+        if (followBtns.length > 0) {
+          const btn = followBtns[0];
+          processed.add(btn);
           try {
-            target.element.scrollIntoView({ behavior: "smooth", block: "center" });
-            await randomDelay(1, 2);
-            xClick(target.followBtn);
+            const authorMatch = btn.getAttribute("aria-label") || "";
+            const author = authorMatch.replace(/^Follow\s*/i, "").trim() || "User";
+            console.log("[XInteraction] Clicking Follow button for:", author);
+            xClick(btn);
             count++;
-            if (onProgressCallback) onProgressCallback({ count, author: target.author });
-            await randomDelay(3, 6);
+            if (onProgressCallback) onProgressCallback({ count, author });
+            await randomDelay(3, 5);
           } catch (e) {
             console.warn("[XInteraction] Auto-follow error:", e);
           }
         } else {
-          window.scrollBy({ top: 700, behavior: "smooth" });
-          await randomDelay(2, 4);
+          console.log("[XInteraction] No new follow button in view, scrolling down...");
+          window.scrollBy({ top: 600, behavior: "smooth" });
+          await randomDelay(2.5, 4);
         }
       }
       return { success: true, totalProcessed: count };
