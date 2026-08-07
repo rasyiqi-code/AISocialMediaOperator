@@ -2939,40 +2939,33 @@
             if (generateReplyFn) replyText = await generateReplyFn(postText);
             if (replyText) {
               try {
-                let sendBtn = null;
-                for (let attempt = 0; attempt < 4 && this.isRunning; attempt++) {
-                  xClick(input);
-                  input.focus();
-                  await randomDelay(0.4, 0.8);
-                  console.log(`[XInteraction] Typing reply attempt ${attempt + 1}/4...`);
-                  await simulateHumanTyping(input, replyText, "medium");
-                  await randomDelay(1, 1.8);
-                  sendBtn = findXReplySubmit();
-                  const ariaDisabled = sendBtn && sendBtn.getAttribute("aria-disabled") === "true";
-                  const typedLen2 = (input.textContent || "").trim().length;
-                  console.log(`[XInteraction][StatusReply][attempt${attempt + 1}] btnDisabled=${ariaDisabled} textLen=${typedLen2} author=${author}`);
-                  if (sendBtn && !sendBtn.disabled && !ariaDisabled && typedLen2 > 0) {
-                    break;
-                  }
-                }
-                if (sendBtn && typedLen > 0) {
+                xClick(input);
+                input.focus();
+                await randomDelay(0.4, 0.8);
+                console.log("[XInteraction] Typing reply into status page composer...");
+                await simulateHumanTyping(input, replyText, "medium");
+                await randomDelay(1.2, 2);
+                const currentTypedLen = (input.textContent || "").trim().length;
+                const sendBtn = findXReplySubmit();
+                if (sendBtn && currentTypedLen > 0) {
                   if (sendBtn.getAttribute("aria-disabled") === "true") {
                     sendBtn.removeAttribute("aria-disabled");
                   }
                   if (sendBtn.disabled) {
                     sendBtn.disabled = false;
                   }
+                  console.log("[XInteraction] Executing click on Reply button...");
                   xClick(sendBtn, true);
                   try {
                     sendBtn.click();
                   } catch (e) {
                   }
-                  console.log("[XInteraction] Clicked Reply button on status page!");
                   count++;
                   if (onProgressCallback) onProgressCallback({ count, author, replyText });
-                  await randomDelay(3, 5);
+                  console.log("[XInteraction] Tweet reply posted successfully! Waiting before navigating back...");
+                  await randomDelay(4, 6);
                 } else {
-                  console.warn("[XInteraction] Reply button missing or text empty.");
+                  console.warn("[XInteraction] Could not locate valid submit button or text empty.");
                 }
               } catch (e) {
                 console.warn("[XInteraction] Error replying on status page:", e);
