@@ -3423,6 +3423,15 @@
   }
 
   // src/content/content_main.js
+  function cleanAiResponseText(rawText) {
+    if (!rawText) return "";
+    let cleaned = rawText.trim();
+    cleaned = cleaned.replace(/^TOPIC LABEL:\s*.+$/im, "").trim();
+    cleaned = cleaned.replace(/^===VARIANT\s*\d+===/im, "").trim();
+    cleaned = cleaned.replace(/^===(IMAGE|POLL)===.+$/im, "").trim();
+    cleaned = cleaned.replace(/<[^>]*>/g, "").trim();
+    return cleaned;
+  }
   var ContentScriptController = class {
     constructor() {
       this.hostname = window.location.hostname;
@@ -3681,7 +3690,7 @@ Gunakan bahasa Indonesia yang alami, 1 kalimat saja, tanpa hashtag. Berikan teks
             if (chrome.runtime.lastError || !res || !res.success) {
               resolve("");
             } else {
-              resolve(res.data || "");
+              resolve(cleanAiResponseText(res.data));
             }
           });
         });
@@ -3713,7 +3722,7 @@ Gunakan bahasa Indonesia yang alami seperti obrolan antar teman, 1 kalimat saja,
             if (chrome.runtime.lastError || !res || !res.success) {
               resolve("");
             } else {
-              resolve(res.data || "");
+              resolve(cleanAiResponseText(res.data));
             }
           });
         });
@@ -3739,7 +3748,7 @@ Tanpa hashtag. Berikan teks balasan saja.`;
             if (chrome.runtime.lastError || !res || !res.success) {
               resolve("");
             } else {
-              resolve(res.data || "");
+              resolve(cleanAiResponseText(res.data));
             }
           });
         });
