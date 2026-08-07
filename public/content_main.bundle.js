@@ -2832,6 +2832,19 @@
     } catch (e) {
     }
   }
+  function findXReplyDialog() {
+    return Array.from(document.querySelectorAll('div[role="dialog"]')).find((d) => {
+      const rect = d.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) return false;
+      return !!d.querySelector(
+        'div[data-testid="tweetTextarea_0"], div[data-testid="tweetTextarea_0RichTextInputContainer"], div[role="textbox"][aria-label*="Post text"]'
+      );
+    }) || null;
+  }
+  function findXReplyInput(dialog) {
+    const scope = dialog || document;
+    return scope.querySelector('div[data-testid="tweetTextarea_0"]') || scope.querySelector('div[role="textbox"][aria-label*="Post text"]') || scope.querySelector('div[contenteditable="true"]') || null;
+  }
   function findXReplySubmit(dialog) {
     if (dialog) {
       return dialog.querySelector('button[data-testid="tweetButton"]') || dialog.querySelector('button[data-testid="tweetButtonInline"]') || null;
@@ -3073,6 +3086,89 @@
         } else {
           window.scrollBy({ top: 700, behavior: "smooth" });
           await randomDelay(2, 4);
+        }
+      }
+      return { success: true, totalProcessed: count };
+    },
+    async startContinuousAutoQuote(onProgressCallback, generateReplyFn) {
+      if (this.isRunning) await this.stop();
+      this.isRunning = true;
+      this.activeTask = "quote";
+      let count = 0;
+      const processedArticles = /* @__PURE__ */ new WeakSet();
+      console.log("[XInteraction] Auto Quote Tweet started...");
+      while (this.isRunning && this.activeTask === "quote") {
+        if (!chrome.runtime?.id) {
+          this.isRunning = false;
+          break;
+        }
+        if (window.scrollY < 200) {
+          window.scrollBy({ top: 600, behavior: "smooth" });
+          await randomDelay(2, 3.5);
+        }
+        const tweets = scanXTweets(40);
+        const target = tweets.find((t) => t.retweetBtn && t.text && t.text.length > 10 && !processedArticles.has(t.element));
+        if (target) {
+          processedArticles.add(target.element);
+          try {
+            target.element.scrollIntoView({ behavior: "smooth", block: "center" });
+            await randomDelay(1, 1.8);
+            xClick(target.retweetBtn);
+            await randomDelay(1, 1.5);
+            const menuItems = Array.from(document.querySelectorAll('div[role="menuitem"], a[role="menuitem"]'));
+            const quoteOption = menuItems.find((el) => el.textContent.toLowerCase().includes("quote")) || menuItems[1];
+            if (quoteOption) {
+              xClick(quoteOption);
+              await randomDelay(1.5, 2.5);
+              const input = await new Promise((resolve) => {
+                const check = setInterval(() => {
+                  const dlg = findXReplyDialog();
+                  if (dlg && findXReplyInput(dlg)) {
+                    clearInterval(check);
+                    resolve(findXReplyInput(dlg));
+                  }
+                }, 300);
+                setTimeout(() => {
+                  clearInterval(check);
+                  resolve(null);
+                }, 6e3);
+              });
+              if (input) {
+                let quoteText = "";
+                if (generateReplyFn) quoteText = await generateReplyFn(target.text);
+                if (quoteText) {
+                  xClick(input);
+                  input.focus();
+                  await randomDelay(0.4, 0.8);
+                  await simulateHumanTyping(input, quoteText, "medium");
+                  await randomDelay(1.2, 2);
+                  const currentTypedLen = (input.textContent || "").trim().length;
+                  const dlg = findXReplyDialog();
+                  const sendBtn = dlg ? findXReplySubmit(dlg) : findXReplySubmit();
+                  if (sendBtn && currentTypedLen > 0) {
+                    if (sendBtn.getAttribute("aria-disabled") === "true") sendBtn.removeAttribute("aria-disabled");
+                    if (sendBtn.disabled) sendBtn.disabled = false;
+                    xClick(sendBtn, true);
+                    try {
+                      sendBtn.click();
+                    } catch (e) {
+                    }
+                    count++;
+                    if (onProgressCallback) onProgressCallback({ count, author: target.author, quoteText });
+                    await randomDelay(4, 6);
+                  }
+                }
+              }
+            }
+            console.log("[XInteraction] Reloading https://x.com/home after Quote...");
+            window.location.href = "https://x.com/home";
+            return { success: true, totalProcessed: count };
+          } catch (e) {
+            console.warn("[XInteraction] Error doing Quote Tweet:", e);
+          }
+        } else {
+          window.scrollBy({ top: 600, behavior: "smooth" });
+          await randomDelay(2.5, 4);
         }
       }
       return { success: true, totalProcessed: count };
@@ -3487,11 +3583,16 @@
         chrome.storage.local.remove("autoReplyRunning");
       }
       if (this.platformKey === "x") {
-        chrome.storage.local.get("xAutoReplyPending", (res) => {
+        chrome.storage.local.get(["xAutoReplyPending", "xAutoQuotePending"], (res) => {
           if (res.xAutoReplyPending) {
             console.log("[AI Social Media Operator] Resuming X Auto AI-Reply after reload...");
             setTimeout(() => {
               this._startXAutoReply();
+            }, 1500);
+          } else if (res.xAutoQuotePending) {
+            console.log("[AI Social Media Operator] Resuming X Auto Quote Tweet after reload...");
+            setTimeout(() => {
+              this._startXAutoQuote();
             }, 1500);
           }
         });
@@ -3614,6 +3715,10 @@
             case "start_x_auto_reply":
               this._startXAutoReply();
               sendResponse({ success: true, message: "X Auto AI-Reply dimulai." });
+              break;
+            case "start_x_auto_quote":
+              this._startXAutoQuote();
+              sendResponse({ success: true, message: "X Auto AI-Quote Tweet dimulai." });
               break;
             case "start_x_auto_retweet":
               this.interaction.startContinuousAutoRetweet((progress) => {
@@ -3782,6 +3887,33 @@ Tanpa hashtag. Berikan teks balasan saja.`;
         chrome.runtime.sendMessage({ action: "INTERACTION_PROGRESS", payload: { type: "x_reply", progress } }).catch(() => {
         });
       }, generateXReplyHelper).catch(console.error);
+    }
+    _startXAutoQuote() {
+      chrome.storage.local.set({ xAutoQuotePending: true });
+      const generateXQuoteHelper = async (postText) => {
+        return new Promise((resolve) => {
+          const prompt = `ISI TWEET TARGET:
+"${postText.slice(0, 500)}"
+
+TUGAS:
+Tulis 1 komentar kutipan (quote tweet, maksimal 200 karakter) yang relevan, punchy, dan cerdas.
+Tanpa hashtag. Berikan teks balasan saja.`;
+          chrome.runtime.sendMessage({
+            action: "GENERATE_CONTENT",
+            payload: { prompt, platform: "x", tone: "casual" }
+          }, (res) => {
+            if (chrome.runtime.lastError || !res || !res.success) {
+              resolve("");
+            } else {
+              resolve(cleanAiResponseText(res.data));
+            }
+          });
+        });
+      };
+      this.interaction.startContinuousAutoQuote((progress) => {
+        chrome.runtime.sendMessage({ action: "INTERACTION_PROGRESS", payload: { type: "x_quote", progress } }).catch(() => {
+        });
+      }, generateXQuoteHelper).catch(console.error);
     }
   };
   var controller = new ContentScriptController();

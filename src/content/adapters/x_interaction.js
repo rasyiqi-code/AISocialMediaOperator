@@ -405,5 +405,99 @@ export const XInteraction = {
       }
     }
     return { success: true, totalProcessed: count };
+  },
+
+  async startContinuousAutoQuote(onProgressCallback, generateReplyFn) {
+    if (this.isRunning) await this.stop();
+    this.isRunning = true;
+    this.activeTask = 'quote';
+    let count = 0;
+    const processedArticles = new WeakSet();
+
+    console.log('[XInteraction] Auto Quote Tweet started...');
+
+    while (this.isRunning && this.activeTask === 'quote') {
+      if (!chrome.runtime?.id) {
+        this.isRunning = false;
+        break;
+      }
+
+      if (window.scrollY < 200) {
+        window.scrollBy({ top: 600, behavior: 'smooth' });
+        await randomDelay(2, 3.5);
+      }
+
+      const tweets = scanXTweets(40);
+      const target = tweets.find(t => t.retweetBtn && t.text && t.text.length > 10 && !processedArticles.has(t.element));
+
+      if (target) {
+        processedArticles.add(target.element);
+        try {
+          target.element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          await randomDelay(1, 1.8);
+
+          // Click retweet button to open menu
+          xClick(target.retweetBtn);
+          await randomDelay(1, 1.5);
+
+          // Select "Quote" menu item
+          const menuItems = Array.from(document.querySelectorAll('div[role="menuitem"], a[role="menuitem"]'));
+          const quoteOption = menuItems.find(el => el.textContent.toLowerCase().includes('quote')) || menuItems[1];
+
+          if (quoteOption) {
+            xClick(quoteOption);
+            await randomDelay(1.5, 2.5);
+
+            const input = await new Promise(resolve => {
+              const check = setInterval(() => {
+                const dlg = findXReplyDialog();
+                if (dlg && findXReplyInput(dlg)) { clearInterval(check); resolve(findXReplyInput(dlg)); }
+              }, 300);
+              setTimeout(() => { clearInterval(check); resolve(null); }, 6000);
+            });
+
+            if (input) {
+              let quoteText = '';
+              if (generateReplyFn) quoteText = await generateReplyFn(target.text);
+
+              if (quoteText) {
+                xClick(input);
+                input.focus();
+                await randomDelay(0.4, 0.8);
+
+                await simulateHumanTyping(input, quoteText, 'medium');
+                await randomDelay(1.2, 2.0);
+
+                const currentTypedLen = (input.textContent || '').trim().length;
+                const dlg = findXReplyDialog();
+                const sendBtn = dlg ? findXReplySubmit(dlg) : findXReplySubmit();
+
+                if (sendBtn && currentTypedLen > 0) {
+                  if (sendBtn.getAttribute('aria-disabled') === 'true') sendBtn.removeAttribute('aria-disabled');
+                  if (sendBtn.disabled) sendBtn.disabled = false;
+
+                  xClick(sendBtn, true);
+                  try { sendBtn.click(); } catch (e) {}
+
+                  count++;
+                  if (onProgressCallback) onProgressCallback({ count, author: target.author, quoteText });
+                  await randomDelay(4, 6);
+                }
+              }
+            }
+          }
+
+          console.log('[XInteraction] Reloading https://x.com/home after Quote...');
+          window.location.href = 'https://x.com/home';
+          return { success: true, totalProcessed: count };
+        } catch (e) {
+          console.warn('[XInteraction] Error doing Quote Tweet:', e);
+        }
+      } else {
+        window.scrollBy({ top: 600, behavior: 'smooth' });
+        await randomDelay(2.5, 4);
+      }
+    }
+    return { success: true, totalProcessed: count };
   }
 };

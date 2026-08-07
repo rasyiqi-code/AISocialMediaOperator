@@ -78,12 +78,15 @@ class ContentScriptController {
       chrome.storage.local.remove('autoReplyRunning');
     }
 
-    // Resume X Auto AI-Reply after reloading https://x.com/home
+    // Resume X Auto AI-Reply or Auto Quote Tweet after reloading https://x.com/home
     if (this.platformKey === 'x') {
-      chrome.storage.local.get('xAutoReplyPending', (res) => {
+      chrome.storage.local.get(['xAutoReplyPending', 'xAutoQuotePending'], (res) => {
         if (res.xAutoReplyPending) {
           console.log('[AI Social Media Operator] Resuming X Auto AI-Reply after reload...');
           setTimeout(() => { this._startXAutoReply(); }, 1500);
+        } else if (res.xAutoQuotePending) {
+          console.log('[AI Social Media Operator] Resuming X Auto Quote Tweet after reload...');
+          setTimeout(() => { this._startXAutoQuote(); }, 1500);
         }
       });
     }
@@ -218,6 +221,11 @@ class ContentScriptController {
           case 'start_x_auto_reply':
             this._startXAutoReply();
             sendResponse({ success: true, message: 'X Auto AI-Reply dimulai.' });
+            break;
+
+          case 'start_x_auto_quote':
+            this._startXAutoQuote();
+            sendResponse({ success: true, message: 'X Auto AI-Quote Tweet dimulai.' });
             break;
 
           case 'start_x_auto_retweet':
@@ -397,6 +405,35 @@ Tanpa hashtag. Berikan teks balasan saja.`;
     this.interaction.startContinuousAutoReply((progress) => {
       chrome.runtime.sendMessage({ action: 'INTERACTION_PROGRESS', payload: { type: 'x_reply', progress } }).catch(() => {});
     }, generateXReplyHelper).catch(console.error);
+  }
+
+  _startXAutoQuote() {
+    chrome.storage.local.set({ xAutoQuotePending: true });
+    const generateXQuoteHelper = async (postText) => {
+      return new Promise((resolve) => {
+        const prompt = `ISI TWEET TARGET:
+"${postText.slice(0, 500)}"
+
+TUGAS:
+Tulis 1 komentar kutipan (quote tweet, maksimal 200 karakter) yang relevan, punchy, dan cerdas.
+Tanpa hashtag. Berikan teks balasan saja.`;
+
+        chrome.runtime.sendMessage({
+          action: 'GENERATE_CONTENT',
+          payload: { prompt, platform: 'x', tone: 'casual' }
+        }, (res) => {
+          if (chrome.runtime.lastError || !res || !res.success) {
+            resolve('');
+          } else {
+            resolve(cleanAiResponseText(res.data));
+          }
+        });
+      });
+    };
+
+    this.interaction.startContinuousAutoQuote((progress) => {
+      chrome.runtime.sendMessage({ action: 'INTERACTION_PROGRESS', payload: { type: 'x_quote', progress } }).catch(() => {});
+    }, generateXQuoteHelper).catch(console.error);
   }
 }
 

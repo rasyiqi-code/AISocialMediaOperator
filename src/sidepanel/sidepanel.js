@@ -280,6 +280,8 @@ class SidepanelApp {
           showInteractResult(`➕ <b>FB Auto-Follow Berjalan...</b><br>Berhasil follow <b>${progress.count}</b> user/halaman.`);
         } else if (type === 'fb_story') {
           showInteractResult(`📖 <b>FB Auto-View Story Berjalan...</b><br>Sudah menonton <b>${progress.count}</b> story.`);
+        } else if (type === 'fb_personal') {
+          showInteractResult(`👥 <b>Auto-Interaksi Personal Berjalan...</b><br>Teman dikunjungi: <b>${progress.count}</b> | 👍 Like: <b>${progress.likes || 0}</b> | 💬 Komentar: <b>${progress.comments || 0}</b><br><span style="opacity:0.8">Profil saat ini: ${progress.author || 'User'}</span>`);
         } else if (type === 'x_like') {
           showInteractResult(`❤️ <b>X Auto-Like Berjalan...</b><br>Berhasil menyukai <b>${progress.count}</b> tweet.`);
         } else if (type === 'x_reply') {
@@ -306,10 +308,12 @@ class SidepanelApp {
     makeToggle('btnFbAutoRepost',  'fb_share',   'start_fb_auto_share',   'stop_fb_auto_share',   '🔁 Mulai Auto-Share',       '⏹️ Stop', '⏳ FB Auto-Share dimulai...');
     makeToggle('btnFbAutoFollow',  'fb_follow',  'start_fb_auto_follow',  'stop_fb_auto_follow',  '➕ Mulai Auto-Follow',      '⏹️ Stop', '⏳ FB Auto-Follow dimulai...');
     makeToggle('btnFbAutoStory',   'fb_story',   'start_fb_auto_story',   'stop_fb_auto_story',   '📖 Mulai Auto-View Story',  '⏹️ Stop', '📖 FB Auto-View Story dimulai...');
+    makeToggle('btnFbAutoPersonal', 'fb_personal', 'start_fb_auto_personal', 'stop_fb_auto_personal', '👥 Mulai Auto-Interaksi Personal', '⏹️ Stop', '👥 FB Auto-Interaksi Personal dimulai...');
 
     // ── X / TWITTER ──
     makeToggle('btnXAutoLike',    'x_like',    'start_x_auto_like',    'stop_x_auto_like',    '❤️ Mulai Auto-Like Tweet', '⏹️ Stop', '⏳ X Auto-Like dimulai...');
     makeToggle('btnXAutoReply',   'x_reply',   'start_x_auto_reply',   'stop_x_auto_reply',   '💬 Mulai Auto AI-Reply',   '⏹️ Stop', '🤖 X Auto AI-Reply dimulai...');
+    makeToggle('btnXAutoQuote',   'x_quote',   'start_x_auto_quote',   'stop_x_auto_quote',   '🗣️ Mulai Auto AI-Quote Tweet', '⏹️ Stop', '🗣️ X Auto AI-Quote Tweet dimulai...');
     makeToggle('btnXAutoRetweet', 'x_retweet', 'start_x_auto_retweet', 'stop_x_auto_retweet', '🔁 Mulai Auto-Retweet',    '⏹️ Stop', '⏳ X Auto-Retweet dimulai...');
     makeToggle('btnXAutoFollow',  'x_follow',  'start_x_auto_follow',  'stop_x_auto_follow',  '➕ Mulai Auto-Follow',     '⏹️ Stop', '⏳ X Auto-Follow dimulai...');
 
