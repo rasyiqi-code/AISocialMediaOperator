@@ -255,11 +255,12 @@ class ContentScriptController {
           case 'stop_fb_auto_personal':
           case 'stop_x_auto_like':
           case 'stop_x_auto_reply':
+          case 'stop_x_auto_quote':
           case 'stop_x_auto_retweet':
           case 'stop_x_auto_follow':
           case 'stop_all':
             this.interaction.stop();
-            chrome.storage.local.remove(['autoReplyRunning', 'fbAutoStoryPending', 'fbAutoPersonalPending', 'xAutoReplyPending']);
+            chrome.storage.local.remove(['autoReplyRunning', 'fbAutoStoryPending', 'fbAutoPersonalPending', 'xAutoReplyPending', 'xAutoQuotePending']);
             sendResponse({ success: true, message: 'Interaksi dihentikan.' });
             break;
 
@@ -379,7 +380,7 @@ Deteksi secara otomatis bahasa yang digunakan dalam isi postingan teman di atas.
   }
 
   _startXAutoReply() {
-    chrome.storage.local.set({ xAutoReplyPending: true });
+    chrome.storage.local.set({ xAutoReplyPending: true, xAutoQuotePending: false });
     const generateXReplyHelper = async (postText) => {
       return new Promise((resolve) => {
         const prompt = `ISI TWEET TARGET:
@@ -410,7 +411,7 @@ Tanpa hashtag. Berikan teks balasan saja.`;
   }
 
   _startXAutoQuote() {
-    chrome.storage.local.set({ xAutoQuotePending: true });
+    chrome.storage.local.set({ xAutoQuotePending: true, xAutoReplyPending: false });
     const generateXQuoteHelper = async (postText) => {
       return new Promise((resolve) => {
         const prompt = `ISI TWEET TARGET:
