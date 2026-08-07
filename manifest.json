@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "AI Social Media Operator",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "AI-powered browser agent to automate posts & engagement across Threads, Facebook, and X (Twitter).",
   "icons": {
     "16": "public/icons/icon16.png",
