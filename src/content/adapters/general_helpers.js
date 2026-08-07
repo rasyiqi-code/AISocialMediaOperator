@@ -39,8 +39,11 @@ export const GeneralHelpers = {
   findVisibleDialog(predicate) {
     return Array.from(document.querySelectorAll('[role="dialog"], [role="menu"]'))
       .filter(d => {
+        // NOTE: do NOT check offsetParent — fixed-position dialogs (FB/Threads)
+        // always have offsetParent === null even when fully visible.
+        if (!d.isConnected) return false;
         const r = d.getBoundingClientRect();
-        return r.width > 0 && r.height > 0 && d.offsetParent !== null;
+        return r.width > 0 && r.height > 0;
       })
       .find(predicate) || null;
   },

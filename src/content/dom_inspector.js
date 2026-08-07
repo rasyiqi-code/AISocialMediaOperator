@@ -117,8 +117,11 @@ function collectScheduleControls(limit = 40) {
 function collectOpenDialogs(limit = 3) {
   return Array.from(document.querySelectorAll('[role="dialog"], [role="menu"]'))
     .filter(d => {
+      // NOTE: do NOT check offsetParent here — Facebook dialogs are position:fixed
+      // which always yields offsetParent === null even when fully visible.
+      if (!d.isConnected) return false;
       const r = d.getBoundingClientRect();
-      return r.width > 0 && r.height > 0 && d.offsetParent !== null;
+      return r.width > 0 && r.height > 0;
     })
     .slice(0, limit)
     .map(d => ({
@@ -180,10 +183,19 @@ function collectFacebookActionButtons() {
 }
 
 export function dumpDomStructure(platform = 'unknown') {
-  const isFacebook = platform === 'facebook' || window.location.hostname.includes('facebook.com') || window.location.hostname.includes('fbcdn.net');
+  // Always derive the platform from the live URL so the dump label stays
+  // accurate even when the caller passes a stale/incorrect value (e.g. the
+  // sidepanel's last-selected platform).
+  const host = window.location.hostname;
+  let detected = '';
+  if (host.includes('facebook.com') || host.includes('fbcdn.net')) detected = 'facebook';
+  else if (host.includes('x.com') || host.includes('twitter.com')) detected = 'x';
+  else if (host.includes('threads.net') || host.includes('threads.com')) detected = 'threads';
+  const effectivePlatform = detected || platform || 'unknown';
+  const isFacebook = effectivePlatform === 'facebook' || host.includes('facebook.com') || host.includes('fbcdn.net');
 
   const report = {
-    platform,
+    platform: effectivePlatform,
     url: window.location.href,
     timestamp: new Date().toISOString(),
     composerInputs: collect(

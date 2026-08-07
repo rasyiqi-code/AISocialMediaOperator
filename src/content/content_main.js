@@ -282,15 +282,10 @@ class ContentScriptController {
   /**
    * Build the AI reply generator and start the continuous auto-reply loop
    */
-  _startAutoReply() {
+  _startThreadsAutoReply() {
     const generateAIReplyHelper = async (postText) => {
       return new Promise((resolve) => {
         const prompt = `ISI POSTINGAN THREADS TARGET:
-"${postText.slice(0, 500)}"
-
-TUGAS:
-Tulis 1 balasan komentar yang SANGAT SPESIFIK & RELEVAN membahas topik atau pesan dari isi postingan Threads di atas.
-
 "${postText.slice(0, 700)}"
 
 TUGAS:
