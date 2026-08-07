@@ -78,6 +78,16 @@ class ContentScriptController {
       chrome.storage.local.remove('autoReplyRunning');
     }
 
+    // Resume X Auto AI-Reply after reloading https://x.com/home
+    if (this.platformKey === 'x') {
+      chrome.storage.local.get('xAutoReplyPending', (res) => {
+        if (res.xAutoReplyPending) {
+          console.log('[AI Social Media Operator] Resuming X Auto AI-Reply after reload...');
+          setTimeout(() => { this._startXAutoReply(); }, 1500);
+        }
+      });
+    }
+
     // Resume Facebook Auto-View Story after it navigated to the Stories page
     // (navigation destroys this content-script context, so the loop restarts here).
     if (this.platformKey === 'facebook' && window.location.href.includes('facebook.com/stories')) {
@@ -241,7 +251,7 @@ class ContentScriptController {
           case 'stop_x_auto_follow':
           case 'stop_all':
             this.interaction.stop();
-            chrome.storage.local.remove(['autoReplyRunning', 'fbAutoStoryPending', 'fbAutoPersonalPending']);
+            chrome.storage.local.remove(['autoReplyRunning', 'fbAutoStoryPending', 'fbAutoPersonalPending', 'xAutoReplyPending']);
             sendResponse({ success: true, message: 'Interaksi dihentikan.' });
             break;
 
@@ -361,6 +371,7 @@ Gunakan bahasa Indonesia yang alami seperti obrolan antar teman, 1 kalimat saja,
   }
 
   _startXAutoReply() {
+    chrome.storage.local.set({ xAutoReplyPending: true });
     const generateXReplyHelper = async (postText) => {
       return new Promise((resolve) => {
         const prompt = `ISI TWEET TARGET:

@@ -283,11 +283,11 @@ export const XInteraction = {
           }
         }
 
-        // After replying (or skipping), navigate back to timeline!
-        console.log('[XInteraction] Navigating back to home timeline...');
-        window.history.back();
-        await randomDelay(3, 5);
-        continue;
+        // After replying (or skipping), reload home timeline!
+        console.log('[XInteraction] Reloading https://x.com/home...');
+        await randomDelay(1.5, 2.5);
+        window.location.href = 'https://x.com/home';
+        return { success: true, totalProcessed: count };
       }
 
       // === CASE 2: Currently on Home / Timeline Feed (e.g. https://x.com/home) ===

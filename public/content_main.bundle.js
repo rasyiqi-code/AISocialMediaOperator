@@ -2972,10 +2972,10 @@
               }
             }
           }
-          console.log("[XInteraction] Navigating back to home timeline...");
-          window.history.back();
-          await randomDelay(3, 5);
-          continue;
+          console.log("[XInteraction] Reloading https://x.com/home...");
+          await randomDelay(1.5, 2.5);
+          window.location.href = "https://x.com/home";
+          return { success: true, totalProcessed: count };
         }
         const tweets = scanXTweets(40);
         let target = tweets.find((t) => {
@@ -3482,6 +3482,16 @@
       if (this.platformKey === "threads") {
         chrome.storage.local.remove("autoReplyRunning");
       }
+      if (this.platformKey === "x") {
+        chrome.storage.local.get("xAutoReplyPending", (res) => {
+          if (res.xAutoReplyPending) {
+            console.log("[AI Social Media Operator] Resuming X Auto AI-Reply after reload...");
+            setTimeout(() => {
+              this._startXAutoReply();
+            }, 1500);
+          }
+        });
+      }
       if (this.platformKey === "facebook" && window.location.href.includes("facebook.com/stories")) {
         chrome.storage.local.get("fbAutoStoryPending", (res) => {
           if (res.fbAutoStoryPending) {
@@ -3632,7 +3642,7 @@
             case "stop_x_auto_follow":
             case "stop_all":
               this.interaction.stop();
-              chrome.storage.local.remove(["autoReplyRunning", "fbAutoStoryPending", "fbAutoPersonalPending"]);
+              chrome.storage.local.remove(["autoReplyRunning", "fbAutoStoryPending", "fbAutoPersonalPending", "xAutoReplyPending"]);
               sendResponse({ success: true, message: "Interaksi dihentikan." });
               break;
             case "reply_post": {
@@ -3743,6 +3753,7 @@ Gunakan bahasa Indonesia yang alami seperti obrolan antar teman, 1 kalimat saja,
       }, generateFbPersonalComment).catch(console.error);
     }
     _startXAutoReply() {
+      chrome.storage.local.set({ xAutoReplyPending: true });
       const generateXReplyHelper = async (postText) => {
         return new Promise((resolve) => {
           const prompt = `ISI TWEET TARGET:
