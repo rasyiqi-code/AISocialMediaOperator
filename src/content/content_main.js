@@ -291,12 +291,13 @@ class ContentScriptController {
 TUGAS:
 Tulis 1 balasan komentar yang SANGAT SPESIFIK & RELEVAN membahas topik atau pesan dari isi postingan Threads di atas.
 
-ATURAN WAKTU MEMBALAS:
-1. Komentar HARUS langsung menyebut/mengomentari topik utama dari postingan di atas (contoh: jika postingan tentang perintah terminal IT, sebutkan perintah terminal atau pengalaman anak IT).
-2. DILARANG KERAS memberikan komentar generik/template seperti "Setuju bgt", "Bikin mikir dua kali", "Keren banget", "Wah menarik".
-3. Gunakan gaya bahasa netizen Indonesia yang santai, gaul, alami (1-2 kalimat pendek saja).
-4. JANGAN gunakan tanda kutip, JANGAN gunakan hashtag, JANGAN kaku/formal.
-5. Berikan LANGSUNG teks balasannya saja tanpa pengantar.`;
+"${postText.slice(0, 700)}"
+
+TUGAS:
+Tulis 1 balasan yang santai, relevan dan spesifik mengomentari postingan di atas.
+ATURAN BAHASA (MANDATORY & PENTING):
+Deteksi secara otomatis bahasa yang digunakan dalam isi postingan target di atas. Tulis balasan Anda dalam BAHASA YANG SAMA PERSIS dengan postingan target (misalnya: jika postingan berbahasa Inggris, jawab sepenuhnya dalam bahasa Inggris; jika Indonesia, jawab bahasa Indonesia; jika Spanyol/Jepang/dll, jawab dalam bahasa tersebut). Gunakan gaya bahasa alami yang pas untuk bahasa target.
+Tanpa hashtag. Berikan teks balasan saja.`;
 
         chrome.runtime.sendMessage({
           action: 'GENERATE_CONTENT',
@@ -305,7 +306,7 @@ ATURAN WAKTU MEMBALAS:
           if (chrome.runtime.lastError || !res || !res.success) {
             resolve('');
           } else {
-            resolve(res.data || '');
+            resolve(cleanAiResponseText(res.data));
           }
         });
       });
@@ -320,11 +321,13 @@ ATURAN WAKTU MEMBALAS:
     const generateFBCommentHelper = async (postText) => {
       return new Promise((resolve) => {
         const prompt = `ISI POSTINGAN FACEBOOK TARGET:
-"${postText.slice(0, 500)}"
+"${postText.slice(0, 700)}"
 
 TUGAS:
 Tulis 1 komentar Facebook yang santai, relevan dan spesifik mengomentari postingan di atas.
-Gunakan bahasa Indonesia yang alami, 1 kalimat saja, tanpa hashtag. Berikan teks komentar saja.`;
+ATURAN BAHASA (MANDATORY & PENTING):
+Deteksi secara otomatis bahasa yang digunakan dalam isi postingan target di atas. Tulis komentar Anda dalam BAHASA YANG SAMA PERSIS dengan postingan target (misalnya: jika postingan berbahasa Inggris, jawab sepenuhnya dalam bahasa Inggris; jika Indonesia, jawab bahasa Indonesia; jika Spanyol/Jepang/dll, jawab dalam bahasa tersebut).
+1 kalimat saja, tanpa hashtag. Berikan teks komentar saja.`;
 
         chrome.runtime.sendMessage({
           action: 'GENERATE_CONTENT',
@@ -354,11 +357,13 @@ Gunakan bahasa Indonesia yang alami, 1 kalimat saja, tanpa hashtag. Berikan teks
     const generateFbPersonalComment = async (postText) => {
       return new Promise((resolve) => {
         const prompt = `ISI POSTINGAN TEMAN DI FACEBOOK:
-"${postText.slice(0, 500)}"
+"${postText.slice(0, 700)}"
 
 TUGAS:
 Tulis 1 komentar untuk teman Anda di Facebook yang santai, hangat, spesifik dan relevan mengomentari isi postingan di atas.
-Gunakan bahasa Indonesia yang alami seperti obrolan antar teman, 1 kalimat saja, tanpa hashtag. Berikan teks komentar saja.`;
+ATURAN BAHASA (MANDATORY & PENTING):
+Deteksi secara otomatis bahasa yang digunakan dalam isi postingan teman di atas. Tulis komentar Anda dalam BAHASA YANG SAMA PERSIS dengan postingan teman tersebut (misalnya: jika postingan berbahasa Inggris, jawab sepenuhnya dalam bahasa Inggris; jika Indonesia, jawab bahasa Indonesia; dst.).
+1 kalimat saja, tanpa hashtag. Berikan teks komentar saja.`;
 
         chrome.runtime.sendMessage({
           action: 'GENERATE_CONTENT',
@@ -383,10 +388,12 @@ Gunakan bahasa Indonesia yang alami seperti obrolan antar teman, 1 kalimat saja,
     const generateXReplyHelper = async (postText) => {
       return new Promise((resolve) => {
         const prompt = `ISI TWEET TARGET:
-"${postText.slice(0, 500)}"
+"${postText.slice(0, 700)}"
 
 TUGAS:
 Tulis 1 balasan tweet (maksimal 200 karakter) yang relevan, punchy, dan alami.
+ATURAN BAHASA (MANDATORY & PENTING):
+Deteksi secara otomatis bahasa yang digunakan dalam ISI TWEET TARGET di atas. Tulis balasan Anda dalam BAHASA YANG SAMA PERSIS dengan tweet target (misalnya: jika tweet berbahasa Inggris, jawab sepenuhnya dalam bahasa Inggris; jika Indonesia, jawab bahasa Indonesia; jika Jepang, jawab bahasa Jepang, dst.). Gunakan gaya bahasa dan slang lokal yang pas.
 Tanpa hashtag. Berikan teks balasan saja.`;
 
         chrome.runtime.sendMessage({
@@ -412,10 +419,12 @@ Tanpa hashtag. Berikan teks balasan saja.`;
     const generateXQuoteHelper = async (postText) => {
       return new Promise((resolve) => {
         const prompt = `ISI TWEET TARGET:
-"${postText.slice(0, 500)}"
+"${postText.slice(0, 700)}"
 
 TUGAS:
 Tulis 1 komentar kutipan (quote tweet, maksimal 200 karakter) yang relevan, punchy, dan cerdas.
+ATURAN BAHASA (MANDATORY & PENTING):
+Deteksi secara otomatis bahasa yang digunakan dalam ISI TWEET TARGET di atas. Tulis komentar Anda dalam BAHASA YANG SAMA PERSIS dengan tweet target (misalnya: jika tweet berbahasa Inggris, jawab sepenuhnya dalam bahasa Inggris; jika Indonesia, jawab bahasa Indonesia; jika Spanyol, jawab bahasa Spanyol, dst.).
 Tanpa hashtag. Berikan teks balasan saja.`;
 
         chrome.runtime.sendMessage({

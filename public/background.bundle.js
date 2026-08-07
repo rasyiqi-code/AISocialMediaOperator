@@ -143,6 +143,7 @@ var AIEngine = class {
     } else {
       platformRules = "Format: Engaging social media style.";
     }
+    platformRules += "\nLanguage Matching (MANDATORY): Automatically detect the primary language used in the target post/prompt. You MUST respond in the EXACT SAME LANGUAGE as the target post (e.g. if the post is in English, reply in English; if Indonesian, reply in Indonesian; if Spanish, reply in Spanish, etc.). Match local tone and slang naturally.";
     if (options.useEmoji) {
       platformRules += "\nEmoji: Use relevant emojis naturally to make the post lively and engaging. Do not overdo it \u2014 max 4-5 emojis, and never start the post with an emoji.";
     }
