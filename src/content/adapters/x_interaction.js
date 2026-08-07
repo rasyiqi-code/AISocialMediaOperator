@@ -233,25 +233,35 @@ export const XInteraction = {
 
           if (replyText) {
             try {
-              input.focus();
-              await randomDelay(0.5, 1);
+              let sendBtn = null;
+              for (let attempt = 0; attempt < 4 && this.isRunning; attempt++) {
+                xClick(input);
+                input.focus();
+                await randomDelay(0.4, 0.8);
 
-              console.log('[XInteraction] Typing reply into status page composer...');
-              await simulateHumanTyping(input, replyText, 'medium');
-              await randomDelay(1.5, 2.5);
+                console.log(`[XInteraction] Typing reply attempt ${attempt + 1}/4...`);
+                await simulateHumanTyping(input, replyText, 'medium');
+                await randomDelay(1, 1.8);
 
-              // Find submit button (either tweetButtonInline or tweetButton)
-              let sendBtn = document.querySelector('button[data-testid="tweetButtonInline"]') ||
-                            document.querySelector('button[data-testid="tweetButton"]');
+                sendBtn = findXReplySubmit();
+                const ariaDisabled = sendBtn && sendBtn.getAttribute('aria-disabled') === 'true';
+                const typedLen = (input.textContent || '').trim().length;
+
+                console.log(`[XInteraction][StatusReply][attempt${attempt + 1}] btnDisabled=${ariaDisabled} textLen=${typedLen} author=${author}`);
+
+                if (sendBtn && !sendBtn.disabled && !ariaDisabled && typedLen > 0) {
+                  break;
+                }
+              }
 
               if (sendBtn && sendBtn.getAttribute('aria-disabled') !== 'true') {
                 xClick(sendBtn, true);
-                console.log('[XInteraction] Clicked Reply button!');
+                console.log('[XInteraction] Clicked Reply button on status page!');
                 count++;
                 if (onProgressCallback) onProgressCallback({ count, author, replyText });
                 await randomDelay(3, 5);
               } else {
-                console.warn('[XInteraction] Reply button still disabled/missing.');
+                console.warn('[XInteraction] Reply button still disabled/missing after attempts.');
               }
             } catch (e) {
               console.warn('[XInteraction] Error replying on status page:', e);

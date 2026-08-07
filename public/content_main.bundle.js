@@ -2792,6 +2792,12 @@
     } catch (e) {
     }
   }
+  function findXReplySubmit(dialog) {
+    if (dialog) {
+      return dialog.querySelector('button[data-testid="tweetButton"]') || null;
+    }
+    return document.querySelector('button[data-testid="tweetButton"]') || document.querySelector('button[data-testid="tweetButtonInline"]') || null;
+  }
   function scanXTweets(maxTweets = 30) {
     const articles = Array.from(document.querySelectorAll('article[data-testid="tweet"]')).filter((el) => {
       const rect = el.getBoundingClientRect();
@@ -2887,20 +2893,30 @@
             if (generateReplyFn) replyText = await generateReplyFn(postText);
             if (replyText) {
               try {
-                input.focus();
-                await randomDelay(0.5, 1);
-                console.log("[XInteraction] Typing reply into status page composer...");
-                await simulateHumanTyping(input, replyText, "medium");
-                await randomDelay(1.5, 2.5);
-                let sendBtn = document.querySelector('button[data-testid="tweetButtonInline"]') || document.querySelector('button[data-testid="tweetButton"]');
+                let sendBtn = null;
+                for (let attempt = 0; attempt < 4 && this.isRunning; attempt++) {
+                  xClick(input);
+                  input.focus();
+                  await randomDelay(0.4, 0.8);
+                  console.log(`[XInteraction] Typing reply attempt ${attempt + 1}/4...`);
+                  await simulateHumanTyping(input, replyText, "medium");
+                  await randomDelay(1, 1.8);
+                  sendBtn = findXReplySubmit();
+                  const ariaDisabled = sendBtn && sendBtn.getAttribute("aria-disabled") === "true";
+                  const typedLen = (input.textContent || "").trim().length;
+                  console.log(`[XInteraction][StatusReply][attempt${attempt + 1}] btnDisabled=${ariaDisabled} textLen=${typedLen} author=${author}`);
+                  if (sendBtn && !sendBtn.disabled && !ariaDisabled && typedLen > 0) {
+                    break;
+                  }
+                }
                 if (sendBtn && sendBtn.getAttribute("aria-disabled") !== "true") {
                   xClick(sendBtn, true);
-                  console.log("[XInteraction] Clicked Reply button!");
+                  console.log("[XInteraction] Clicked Reply button on status page!");
                   count++;
                   if (onProgressCallback) onProgressCallback({ count, author, replyText });
                   await randomDelay(3, 5);
                 } else {
-                  console.warn("[XInteraction] Reply button still disabled/missing.");
+                  console.warn("[XInteraction] Reply button still disabled/missing after attempts.");
                 }
               } catch (e) {
                 console.warn("[XInteraction] Error replying on status page:", e);
