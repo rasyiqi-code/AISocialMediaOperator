@@ -89,15 +89,7 @@
   };
   var insertViaBeforeInput = (element, text) => {
     element.focus();
-    try {
-      const sel = window.getSelection();
-      const range = document.createRange();
-      range.selectNodeContents(element);
-      range.collapse(true);
-      sel.removeAllRanges();
-      sel.addRange(range);
-    } catch (e) {
-    }
+    placeCaretAtEnd(element);
     const lines = text.split("\n");
     lines.forEach((line, i) => {
       if (line) {
@@ -119,15 +111,7 @@
   };
   var insertWithParagraphs = (element, text) => {
     element.focus();
-    try {
-      const sel = window.getSelection();
-      const range = document.createRange();
-      range.selectNodeContents(element);
-      range.collapse(true);
-      sel.removeAllRanges();
-      sel.addRange(range);
-    } catch (e) {
-    }
+    placeCaretAtEnd(element);
     const lines = text.split("\n");
     lines.forEach((line, i) => {
       if (line) {
@@ -3583,19 +3567,20 @@
         chrome.storage.local.remove("autoReplyRunning");
       }
       if (this.platformKey === "x") {
-        chrome.storage.local.get(["xAutoReplyPending", "xAutoQuotePending"], (res) => {
-          if (res.xAutoReplyPending) {
-            console.log("[AI Social Media Operator] Resuming X Auto AI-Reply after reload...");
-            setTimeout(() => {
-              this._startXAutoReply();
-            }, 1500);
-          } else if (res.xAutoQuotePending) {
-            console.log("[AI Social Media Operator] Resuming X Auto Quote Tweet after reload...");
-            setTimeout(() => {
-              this._startXAutoQuote();
-            }, 1500);
-          }
-        });
+        const activeReplyMode = sessionStorage.getItem("xAutoLoopMode");
+        if (activeReplyMode === "reply") {
+          console.log("[AI Social Media Operator] Resuming X Auto AI-Reply after reload...");
+          setTimeout(() => {
+            this._startXAutoReply();
+          }, 1500);
+        } else if (activeReplyMode === "quote") {
+          console.log("[AI Social Media Operator] Resuming X Auto Quote Tweet after reload...");
+          setTimeout(() => {
+            this._startXAutoQuote();
+          }, 1500);
+        } else {
+          chrome.storage.local.remove(["xAutoReplyPending", "xAutoQuotePending"]);
+        }
       }
       if (this.platformKey === "facebook" && window.location.href.includes("facebook.com/stories")) {
         chrome.storage.local.get("fbAutoStoryPending", (res) => {
@@ -3752,6 +3737,7 @@
             case "stop_x_auto_follow":
             case "stop_all":
               this.interaction.stop();
+              sessionStorage.removeItem("xAutoLoopMode");
               chrome.storage.local.remove(["autoReplyRunning", "fbAutoStoryPending", "fbAutoPersonalPending", "xAutoReplyPending", "xAutoQuotePending"]);
               sendResponse({ success: true, message: "Interaksi dihentikan." });
               break;
@@ -3863,6 +3849,7 @@ Deteksi secara otomatis bahasa yang digunakan dalam isi postingan teman di atas.
       }, generateFbPersonalComment).catch(console.error);
     }
     _startXAutoReply() {
+      sessionStorage.setItem("xAutoLoopMode", "reply");
       chrome.storage.local.set({ xAutoReplyPending: true, xAutoQuotePending: false });
       const generateXReplyHelper = async (postText) => {
         return new Promise((resolve) => {
@@ -3892,6 +3879,7 @@ Tanpa hashtag. Berikan teks balasan saja.`;
       }, generateXReplyHelper).catch(console.error);
     }
     _startXAutoQuote() {
+      sessionStorage.setItem("xAutoLoopMode", "quote");
       chrome.storage.local.set({ xAutoQuotePending: true, xAutoReplyPending: false });
       const generateXQuoteHelper = async (postText) => {
         return new Promise((resolve) => {

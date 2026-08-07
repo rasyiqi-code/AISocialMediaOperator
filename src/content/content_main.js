@@ -78,17 +78,19 @@ class ContentScriptController {
       chrome.storage.local.remove('autoReplyRunning');
     }
 
-    // Resume X Auto AI-Reply or Auto Quote Tweet after reloading https://x.com/home
+    // Resume X Auto AI-Reply or Auto Quote Tweet ONLY if tab-scoped loop is active
     if (this.platformKey === 'x') {
-      chrome.storage.local.get(['xAutoReplyPending', 'xAutoQuotePending'], (res) => {
-        if (res.xAutoReplyPending) {
-          console.log('[AI Social Media Operator] Resuming X Auto AI-Reply after reload...');
-          setTimeout(() => { this._startXAutoReply(); }, 1500);
-        } else if (res.xAutoQuotePending) {
-          console.log('[AI Social Media Operator] Resuming X Auto Quote Tweet after reload...');
-          setTimeout(() => { this._startXAutoQuote(); }, 1500);
-        }
-      });
+      const activeReplyMode = sessionStorage.getItem('xAutoLoopMode');
+      if (activeReplyMode === 'reply') {
+        console.log('[AI Social Media Operator] Resuming X Auto AI-Reply after reload...');
+        setTimeout(() => { this._startXAutoReply(); }, 1500);
+      } else if (activeReplyMode === 'quote') {
+        console.log('[AI Social Media Operator] Resuming X Auto Quote Tweet after reload...');
+        setTimeout(() => { this._startXAutoQuote(); }, 1500);
+      } else {
+        // Clear any stale flags from previous sessions
+        chrome.storage.local.remove(['xAutoReplyPending', 'xAutoQuotePending']);
+      }
     }
 
     // Resume Facebook Auto-View Story after it navigated to the Stories page
@@ -260,6 +262,7 @@ class ContentScriptController {
           case 'stop_x_auto_follow':
           case 'stop_all':
             this.interaction.stop();
+            sessionStorage.removeItem('xAutoLoopMode');
             chrome.storage.local.remove(['autoReplyRunning', 'fbAutoStoryPending', 'fbAutoPersonalPending', 'xAutoReplyPending', 'xAutoQuotePending']);
             sendResponse({ success: true, message: 'Interaksi dihentikan.' });
             break;
@@ -380,6 +383,7 @@ Deteksi secara otomatis bahasa yang digunakan dalam isi postingan teman di atas.
   }
 
   _startXAutoReply() {
+    sessionStorage.setItem('xAutoLoopMode', 'reply');
     chrome.storage.local.set({ xAutoReplyPending: true, xAutoQuotePending: false });
     const generateXReplyHelper = async (postText) => {
       return new Promise((resolve) => {
@@ -411,6 +415,7 @@ Tanpa hashtag. Berikan teks balasan saja.`;
   }
 
   _startXAutoQuote() {
+    sessionStorage.setItem('xAutoLoopMode', 'quote');
     chrome.storage.local.set({ xAutoQuotePending: true, xAutoReplyPending: false });
     const generateXQuoteHelper = async (postText) => {
       return new Promise((resolve) => {
