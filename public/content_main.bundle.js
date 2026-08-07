@@ -2998,16 +2998,15 @@
           const href = link ? link.getAttribute("href") : "";
           if (href) processedUrls.add(href);
           try {
-            console.log("[XInteraction] Scrolling to target tweet:", target.author);
+            console.log("[XInteraction] Target found:", target.author, href);
             target.element.scrollIntoView({ behavior: "smooth", block: "center" });
-            await randomDelay(1, 2);
-            console.log("[XInteraction] Clicking tweet body to open status page...");
-            const clickTarget = target.element.querySelector("time")?.parentElement || link || target.element;
-            xClick(clickTarget);
-            await randomDelay(3, 5);
-            continue;
+            await randomDelay(1, 1.8);
+            const targetUrl = href.startsWith("http") ? href : "https://x.com" + href;
+            console.log("[XInteraction] Navigating directly to tweet status page:", targetUrl);
+            window.location.href = targetUrl;
+            return { success: true, totalProcessed: count };
           } catch (e) {
-            console.warn("[XInteraction] Error clicking tweet to enter status page:", e);
+            console.warn("[XInteraction] Error navigating to status page:", e);
           }
         } else {
           console.log("[XInteraction] No target on current view, scrolling timeline down...");

@@ -317,20 +317,16 @@ export const XInteraction = {
         if (href) processedUrls.add(href);
 
         try {
-          console.log('[XInteraction] Scrolling to target tweet:', target.author);
+          console.log('[XInteraction] Target found:', target.author, href);
           target.element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          await randomDelay(1, 2);
+          await randomDelay(1, 1.8);
 
-          // Click body of tweet / time link to navigate into tweet status page
-          console.log('[XInteraction] Clicking tweet body to open status page...');
-          const clickTarget = target.element.querySelector('time')?.parentElement || link || target.element;
-          xClick(clickTarget);
-          await randomDelay(3, 5);
-
-          // Next iteration of while-loop will pick up CASE 1 (status page)!
-          continue;
+          const targetUrl = href.startsWith('http') ? href : 'https://x.com' + href;
+          console.log('[XInteraction] Navigating directly to tweet status page:', targetUrl);
+          window.location.href = targetUrl;
+          return { success: true, totalProcessed: count };
         } catch (e) {
-          console.warn('[XInteraction] Error clicking tweet to enter status page:', e);
+          console.warn('[XInteraction] Error navigating to status page:', e);
         }
       } else {
         // No un-replied tweet target on current screen, scroll timeline down smoothly
