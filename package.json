@@ -1,0 +1,24 @@
+{
+  "name": "ai-social-media-operator",
+  "version": "1.0.0",
+  "description": "Browser extension agent for automated content generation and social media interaction on Threads, Facebook, and X",
+  "main": "src/background/background.js",
+  "scripts": {
+    "build": "npx esbuild src/content/content_main.js --bundle --outfile=public/content_main.bundle.js --format=iife && npx esbuild src/background/background.js --bundle --outfile=public/background.bundle.js --format=esm",
+    "watch": "npx esbuild src/content/content_main.js --bundle --outfile=public/content_main.bundle.js --format=iife --watch"
+  },
+  "keywords": [
+    "chrome-extension",
+    "ai",
+    "social-media",
+    "automation",
+    "threads",
+    "facebook",
+    "twitter",
+    "x",
+    "gemini",
+    "chatgpt"
+  ],
+  "author": "Antigravity AI",
+  "license": "MIT"
+}

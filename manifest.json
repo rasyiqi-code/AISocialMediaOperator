@@ -1,0 +1,62 @@
+{
+  "manifest_version": 3,
+  "name": "AI Social Media Operator",
+  "version": "1.0.0",
+  "description": "AI-powered browser agent to automate posts & engagement across Threads, Facebook, and X (Twitter).",
+  "icons": {
+    "16": "public/icons/icon16.png",
+    "48": "public/icons/icon48.png",
+    "128": "public/icons/icon128.png"
+  },
+  "permissions": [
+    "storage",
+    "cookies",
+    "tabs",
+    "activeTab",
+    "scripting",
+    "alarms",
+    "sidePanel"
+  ],
+  "host_permissions": [
+    "https://*.threads.net/*",
+    "https://*.threads.com/*",
+    "https://*.facebook.com/*",
+    "https://*.x.com/*",
+    "https://*.twitter.com/*",
+    "https://chatgpt.com/*",
+    "https://gemini.google.com/*",
+    "https://generativelanguage.googleapis.com/*",
+    "https://api.openai.com/*",
+    "https://api.groq.com/*"
+  ],
+  "background": {
+    "service_worker": "public/background.bundle.js",
+    "type": "module"
+  },
+  "side_panel": {
+    "default_path": "public/sidepanel.html"
+  },
+  "action": {
+    "default_title": "AI Social Media Operator"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*.threads.net/*",
+        "https://*.threads.com/*",
+        "https://*.facebook.com/*",
+        "https://*.x.com/*",
+        "https://*.twitter.com/*"
+      ],
+      "js": ["public/content_main.bundle.js"],
+      "css": ["src/content/injected.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["public/icons/*", "src/content/*"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}
