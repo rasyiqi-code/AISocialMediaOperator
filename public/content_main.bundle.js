@@ -2919,20 +2919,30 @@
                   await randomDelay(1, 1.8);
                   sendBtn = findXReplySubmit();
                   const ariaDisabled = sendBtn && sendBtn.getAttribute("aria-disabled") === "true";
-                  const typedLen = (input.textContent || "").trim().length;
-                  console.log(`[XInteraction][StatusReply][attempt${attempt + 1}] btnDisabled=${ariaDisabled} textLen=${typedLen} author=${author}`);
-                  if (sendBtn && !sendBtn.disabled && !ariaDisabled && typedLen > 0) {
+                  const typedLen2 = (input.textContent || "").trim().length;
+                  console.log(`[XInteraction][StatusReply][attempt${attempt + 1}] btnDisabled=${ariaDisabled} textLen=${typedLen2} author=${author}`);
+                  if (sendBtn && !sendBtn.disabled && !ariaDisabled && typedLen2 > 0) {
                     break;
                   }
                 }
-                if (sendBtn && sendBtn.getAttribute("aria-disabled") !== "true") {
+                if (sendBtn && typedLen > 0) {
+                  if (sendBtn.getAttribute("aria-disabled") === "true") {
+                    sendBtn.removeAttribute("aria-disabled");
+                  }
+                  if (sendBtn.disabled) {
+                    sendBtn.disabled = false;
+                  }
                   xClick(sendBtn, true);
+                  try {
+                    sendBtn.click();
+                  } catch (e) {
+                  }
                   console.log("[XInteraction] Clicked Reply button on status page!");
                   count++;
                   if (onProgressCallback) onProgressCallback({ count, author, replyText });
                   await randomDelay(3, 5);
                 } else {
-                  console.warn("[XInteraction] Reply button still disabled/missing after attempts.");
+                  console.warn("[XInteraction] Reply button missing or text empty.");
                 }
               } catch (e) {
                 console.warn("[XInteraction] Error replying on status page:", e);

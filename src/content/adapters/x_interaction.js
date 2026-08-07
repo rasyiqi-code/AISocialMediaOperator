@@ -268,14 +268,23 @@ export const XInteraction = {
                 }
               }
 
-              if (sendBtn && sendBtn.getAttribute('aria-disabled') !== 'true') {
+              if (sendBtn && typedLen > 0) {
+                if (sendBtn.getAttribute('aria-disabled') === 'true') {
+                  sendBtn.removeAttribute('aria-disabled');
+                }
+                if (sendBtn.disabled) {
+                  sendBtn.disabled = false;
+                }
+
                 xClick(sendBtn, true);
+                try { sendBtn.click(); } catch(e) {}
+
                 console.log('[XInteraction] Clicked Reply button on status page!');
                 count++;
                 if (onProgressCallback) onProgressCallback({ count, author, replyText });
                 await randomDelay(3, 5);
               } else {
-                console.warn('[XInteraction] Reply button still disabled/missing after attempts.');
+                console.warn('[XInteraction] Reply button missing or text empty.');
               }
             } catch (e) {
               console.warn('[XInteraction] Error replying on status page:', e);
