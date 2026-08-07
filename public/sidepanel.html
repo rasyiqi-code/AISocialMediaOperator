@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Social Media Operator</title>
+  <link rel="stylesheet" href="../src/sidepanel/sidepanel.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="brand">
+        <div class="brand-icon">
+          <svg viewBox="0 0 24 24">
+            <path d="M12 2L14.5 9.5L22 12L14.5 14.5L12 22L9.5 14.5L2 12L9.5 9.5L12 2Z"/>
+          </svg>
+        </div>
+        <div class="brand-text">
+          <h1>AI Operator</h1>
+          <span class="badge-status online">Agent Active</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Navigation Tabs -->
+    <nav class="nav-tabs">
+      <button class="nav-tab active" data-tab="studio">
+        <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M12 3c-4.97 0-9 4.03-9 9 0 2.12.74 4.07 1.97 5.61L4.35 20.7c-.15.45.26.86.71.71l3.09-.62C9.69 21.56 10.82 21.8 12 21.8c4.97 0 9-4.03 9-9s-4.03-9-9-9z"/></svg>
+        <span>Studio</span>
+      </button>
+      <!-- TAB 2: INTERAKSI -->
+      <button class="nav-tab" data-tab="interact">
+        <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+        <span>Interaksi</span>
+      </button>
+      <button class="nav-tab" data-tab="settings">
+        <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+        <span>Settings</span>
+      </button>
+      <button class="nav-tab" data-tab="logs">
+        <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42C8.27 19.99 10.51 21 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/></svg>
+        <span>Logs</span>
+      </button>
+    </nav>
+
+    <!-- Main Views -->
+    <main class="content-area">
+      <!-- TAB 1: STUDIO -->
+      <section class="tab-view active" id="view-studio">
+        <div class="card">
+          <div class="card-header">
+            <h2>✨ AI Content Generator</h2>
+          </div>
+
+          <details class="idea-generator" open>
+            <summary class="idea-gen-title">💡 Buntu Ide? <span class="idea-hint">minta AI menyusun ide dari niche (opsional)</span></summary>
+            <div class="idea-gen-row">
+              <input type="text" id="ideaNiche" class="form-control" placeholder="Niche — contoh: kopi, AI untuk UMKM..." />
+              <button class="btn btn-primary btn-sm" id="btnGenIdeas" style="flex-shrink:0;">✨ 10 Ide</button>
+              <button class="btn btn-outline btn-sm" id="btnRandomIdea" style="flex-shrink:0;">🎲 Acak</button>
+            </div>
+            <div id="ideasResult" style="display:none; margin-top:10px;">
+              <div class="idea-result-head">
+                <span>Klik "✨ Buat" untuk langsung dibuatkan postingan</span>
+                <button class="btn-sm btn-outline" id="btnShuffleIdeas">🔄 Baru</button>
+              </div>
+              <div id="ideasList"></div>
+            </div>
+          </details>
+
+          <div class="form-group">
+            <label>Target Social Media</label>
+            <div class="platform-selector">
+              <button class="platform-btn active" data-platform="threads">
+                <span class="icon">🧵</span> Threads
+              </button>
+              <button class="platform-btn" data-platform="facebook">
+                <span class="icon">📘</span> Facebook
+              </button>
+              <button class="platform-btn" data-platform="x">
+                <span class="icon">𝕏</span> X (Twitter)
+              </button>
+            </div>
+          </div>
+
+          <!-- Threads Format Mode Selector (3 Options) -->
+          <div class="form-group" id="groupThreadsMode">
+            <label>Format Posting Threads</label>
+            <div class="mode-selector">
+              <button type="button" class="mode-btn" data-mode="short">
+                ⚡ Post Pendek (&lt; 500)
+              </button>
+              <button type="button" class="mode-btn active" data-mode="thread">
+                🧵 Utas (Threaded)
+              </button>
+              <button type="button" class="mode-btn" data-mode="attachment">
+                📎 Text Attachment
+              </button>
+              <button type="button" class="mode-btn" data-mode="poll">
+                📊 Polling
+              </button>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Topik / Ide Utama Konten</label>
+            <textarea id="studioTopic" rows="3" placeholder="Contoh: 3 Alasan kenapa AI agent akan mengubah cara kerja bisnis kecil di 2026"></textarea>
+          </div>
+
+          <div class="form-group">
+            <label>Tone Gaya Bahasa</label>
+            <div class="tone-chips">
+              <button class="chip active" data-tone="engaging">🔥 Viral & Engaging</button>
+              <button class="chip" data-tone="professional">💼 Profesional</button>
+              <button class="chip" data-tone="casual">😊 Santai & Storytelling</button>
+              <button class="chip" data-tone="humorous">😄 Humor / Memes</button>
+              <button class="chip" data-tone="custom">✍️ Custom</button>
+            </div>
+            <input type="text" id="customToneInput" class="form-control" style="display:none; margin-top:8px;" placeholder="Tulis tone bebas — contoh: sarkastik, emosional, inspiratif, gaya anak muda..." />
+          </div>
+
+          <div class="form-group">
+            <label>Varian & Fitur Opsional (Ceklis)</label>
+            <div class="option-row" style="flex-wrap:wrap; gap:10px;">
+              <div class="seg-selector">
+                <button type="button" class="seg-btn active" data-variant="1">1 Varian</button>
+                <button type="button" class="seg-btn" data-variant="3">3 Varian</button>
+              </div>
+               <label class="check-inline">
+                 <input type="checkbox" id="optEmoji" />
+                 <span>✨ Emoji</span>
+               </label>
+               <label class="check-inline">
+                 <input type="checkbox" id="optImage" />
+                 <span>🖼️ Gambar AI</span>
+               </label>
+            </div>
+            <input type="text" id="locationInput" class="form-control" style="display:none; margin-top:8px;" placeholder="📍 Nama lokasi — contoh: Jakarta, Indonesia" />
+          </div>
+
+          <button class="btn btn-primary" id="btnGenerateStudio">
+            <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M12 2L14.5 9.5L22 12L14.5 14.5L12 22L9.5 14.5L2 12L9.5 9.5L12 2Z"/></svg>
+            <span>Generate Content with AI</span>
+          </button>
+
+          <!-- Result Preview (variant cards rendered here by sidepanel.js) -->
+          <div class="result-card" id="studioResultWrapper" style="display:none;"></div>
+        </div>
+      </section>
+
+      <!-- TAB 2: INTERAKSI -->
+      <section class="tab-view" id="view-interact">
+        <div class="card">
+          <div class="card-header">
+            <h2>❤️ Interaksi Otomatis</h2>
+          </div>
+
+          <!-- Platform Sub-Tabs -->
+          <div class="interact-subtabs">
+            <button class="interact-subtab active" data-panel="threads">🧵 Threads</button>
+            <button class="interact-subtab" data-panel="facebook">📘 Facebook</button>
+            <button class="interact-subtab" data-panel="x">𝕏 X</button>
+          </div>
+
+          <!-- ===== THREADS PANEL ===== -->
+          <div class="interact-panel active" id="panelThreadsInteract">
+            <p class="interact-platform-hint">Pastikan Anda membuka <strong>threads.net</strong> di tab aktif.</p>
+
+            <div class="interact-card" id="interactLike">
+              <div class="interact-card-header"><span>❤️ Auto-Like Postingan</span></div>
+              <p class="interact-desc">Robot menyukai postingan di feed secara otomatis dan terus scroll ke bawah sampai Anda klik Stop.</p>
+              <button class="btn btn-interact" id="btnAutoLike">❤️ Mulai Auto-Like</button>
+            </div>
+
+            <div class="interact-card" id="interactReply">
+              <div class="interact-card-header"><span>💬 Auto AI-Reply (Kontekstual)</span></div>
+              <p class="interact-desc">AI membaca postingan di feed, membuat balasan natural & kontekstual, lalu mengirimkannya sambil auto-scroll.</p>
+              <button class="btn btn-interact" id="btnAutoReply">💬 Mulai Auto AI-Reply</button>
+            </div>
+
+            <div class="interact-card" id="interactRepost">
+              <div class="interact-card-header"><span>🔁 Auto-Repost Postingan</span></div>
+              <p class="interact-desc">Otomatis repost postingan dari feed baru secara berkala sambil auto-scroll.</p>
+              <button class="btn btn-interact" id="btnAutoRepost">🔁 Mulai Auto-Repost</button>
+            </div>
+
+            <div class="interact-card" id="interactFollow">
+              <div class="interact-card-header"><span>➕ Auto-Follow User</span></div>
+              <p class="interact-desc">Otomatis mengikuti pengguna yang muncul di feed secara terus-menerus.</p>
+              <button class="btn btn-interact" id="btnAutoFollow">➕ Mulai Auto-Follow</button>
+            </div>
+          </div><!-- end #panelThreadsInteract -->
+
+          <!-- ===== FACEBOOK PANEL ===== -->
+          <div class="interact-panel" id="panelFacebookInteract">
+            <p class="interact-platform-hint">Pastikan Anda membuka <strong>facebook.com</strong> di tab aktif.</p>
+
+            <div class="interact-card" id="interactFbLike">
+              <div class="interact-card-header"><span>👍 Auto-Like / Reaksi Acak Postingan</span></div>
+              <p class="interact-desc">Otomatis memberikan Like atau Reaksi acak (Suka, Super, Peduli, Haha, Wow) pada postingan Facebook Feed & scroll down.</p>
+              <button class="btn btn-interact" id="btnFbAutoLike">👍 Mulai Auto-Like / Reaksi Acak</button>
+            </div>
+
+            <div class="interact-card" id="interactFbComment">
+              <div class="interact-card-header"><span>💬 Auto AI-Comment (Kontekstual)</span></div>
+              <p class="interact-desc">AI membaca postingan di Facebook Feed lalu menulis komentar yang relevan & kontekstual secara otomatis.</p>
+              <button class="btn btn-interact" id="btnFbAutoComment">💬 Mulai Auto AI-Comment</button>
+            </div>
+
+            <div class="interact-card" id="interactFbRepost">
+              <div class="interact-card-header"><span>🔁 Auto-Share / Repost</span></div>
+              <p class="interact-desc">Otomatis membagikan (Share) postingan dari Facebook Feed ke profil atau halaman Anda.</p>
+              <button class="btn btn-interact" id="btnFbAutoRepost">🔁 Mulai Auto-Share</button>
+            </div>
+
+            <div class="interact-card" id="interactFbFollow">
+              <div class="interact-card-header"><span>➕ Auto-Follow / Friend</span></div>
+              <p class="interact-desc">Otomatis mengikuti pengguna / halaman atau mengirim permintaan pertemanan dari Facebook Feed.</p>
+              <button class="btn btn-interact" id="btnFbAutoFollow">➕ Mulai Auto-Follow</button>
+            </div>
+
+            <div class="interact-card" id="interactFbStory">
+              <div class="interact-card-header"><span>📖 Auto-View Story</span></div>
+              <p class="interact-desc">Otomatis menonton Story pengguna yang muncul di bagian atas feed Facebook secara berurutan.</p>
+              <button class="btn btn-interact" id="btnFbAutoStory">📖 Mulai Auto-View Story</button>
+            </div>
+          </div><!-- end #panelFacebookInteract -->
+
+          <!-- ===== X / TWITTER PANEL ===== -->
+          <div class="interact-panel" id="panelXInteract">
+            <p class="interact-platform-hint">Pastikan Anda membuka <strong>x.com</strong> di tab aktif.</p>
+
+            <div class="interact-card" id="interactXLike">
+              <div class="interact-card-header"><span>❤️ Auto-Like Tweet</span></div>
+              <p class="interact-desc">Otomatis menyukai tweet di timeline X/Twitter sambil scroll ke bawah.</p>
+              <button class="btn btn-interact" id="btnXAutoLike">❤️ Mulai Auto-Like Tweet</button>
+            </div>
+
+            <div class="interact-card" id="interactXReply">
+              <div class="interact-card-header"><span>💬 Auto AI-Reply Tweet</span></div>
+              <p class="interact-desc">AI membaca tweet di feed dan membalas secara kontekstual & natural.</p>
+              <button class="btn btn-interact" id="btnXAutoReply">💬 Mulai Auto AI-Reply</button>
+            </div>
+
+            <div class="interact-card" id="interactXRetweet">
+              <div class="interact-card-header"><span>🔁 Auto-Retweet</span></div>
+              <p class="interact-desc">Otomatis me-retweet postingan di timeline X sambil auto-scroll.</p>
+              <button class="btn btn-interact" id="btnXAutoRetweet">🔁 Mulai Auto-Retweet</button>
+            </div>
+
+            <div class="interact-card" id="interactXFollow">
+              <div class="interact-card-header"><span>➕ Auto-Follow User</span></div>
+              <p class="interact-desc">Otomatis mengikuti pengguna yang muncul di feed atau rekomendasi X.</p>
+              <button class="btn btn-interact" id="btnXAutoFollow">➕ Mulai Auto-Follow</button>
+            </div>
+          </div><!-- end #panelXInteract -->
+
+          <!-- DOM Inspector Debug (shared) -->
+          <div class="interact-card" id="interactDebug">
+            <div class="interact-card-header"><span>🔬 Inspector DOM (Debug)</span></div>
+            <p class="interact-desc">Dump struktur DOM halaman aktif untuk verifikasi selector. Hasil tampil di Console (F12) & clipboard.</p>
+            <button class="btn btn-interact" id="btnDebugDom">🔬 Dump DOM Aktif</button>
+          </div>
+
+          <!-- Interaction Results -->
+          <div id="interactResult" style="display:none;" class="interact-result"></div>
+        </div>
+      </section>
+
+      <!-- TAB 3: SETTINGS -->
+      <section class="tab-view" id="view-settings">
+        <div class="card">
+          <div class="card-header">
+            <h2>⚙️ Konfigurasi AI Engine</h2>
+          </div>
+
+          <div class="form-group">
+             <label>Pilih AI Provider Engine</label>
+             <select id="cfgAiProvider" class="input-field">
+               <option value="cookie_gemini">Gemini (Cookie — Gratis, Zero Setup)</option>
+               <option value="cookie_chatgpt">ChatGPT (Cookie — Gratis, Zero Setup)</option>
+               <option value="openai_compat">OpenAI-Compatible API (Key + Endpoint)</option>
+               <option value="claude_compat">Anthropic Claude API (Key)</option>
+             </select>
+          </div>
+
+          <div id="groupChatgptCookie" class="form-group" style="display:none;">
+            <label>ChatGPT Cookie (chatgpt.com)</label>
+            <div class="cookie-row">
+              <textarea id="cfgChatgptCookie" class="input-field" rows="3" placeholder="Paste cookie string di sini, atau klik Auto-Detect..."></textarea>
+               <button class="btn-sm btn-outline" id="btnAutoDetectChatgptCookie" type="button">🔍 Auto-Detect Cookie</button>
+            </div>
+            <span id="statusChatgptCookie" style="font-size:11px;color:var(--text-muted);"></span>
+          </div>
+
+          <div id="groupGeminiCookie" class="form-group">
+            <label>Gemini Cookie (gemini.google.com)</label>
+            <div class="cookie-row">
+              <textarea id="cfgGeminiCookie" class="input-field" rows="3" placeholder="Paste cookie string di sini, atau klik Auto-Detect..."></textarea>
+               <button class="btn-sm btn-outline" id="btnAutoDetectGeminiCookie" type="button">🔍 Auto-Detect Cookie</button>
+            </div>
+            <span id="statusGeminiCookie" style="font-size:11px;color:var(--text-muted);"></span>
+          </div>
+
+          <div id="groupOpenAICompat" class="form-group settings-block" style="display:none;">
+            <div class="settings-block-header">🤖 OpenAI-Compatible API</div>
+            <div class="form-group">
+              <label>API Key</label>
+              <input type="password" id="cfgApiKey" class="input-field" placeholder="sk-..." />
+            </div>
+            <div class="form-group">
+              <label>API Endpoint</label>
+              <input type="text" id="cfgApiEndpoint" class="input-field" placeholder="https://api.openai.com/v1/chat/completions" />
+            </div>
+            <div class="form-group" style="margin-bottom:0;">
+              <label>Model</label>
+              <input type="text" id="cfgApiModel" class="input-field" placeholder="gpt-4o-mini" />
+            </div>
+          </div>
+
+          <div id="groupClaudeCompat" class="form-group settings-block" style="display:none;">
+            <div class="settings-block-header">🟣 Claude Code Compatible</div>
+            <div class="form-group">
+              <label>API Key</label>
+              <input type="password" id="cfgClaudeApiKey" class="input-field" placeholder="sk-ant-..." />
+            </div>
+            <div class="form-group">
+              <label>API Endpoint <span style="font-weight:400; color:var(--text-muted);">(kosongkan = default Anthropic)</span></label>
+              <input type="text" id="cfgClaudeEndpoint" class="input-field" placeholder="https://api.anthropic.com/v1/messages" />
+            </div>
+            <div class="form-group" style="margin-bottom:0;">
+              <label>Model <span style="font-weight:400; color:var(--text-muted);">(kosongkan = claude-sonnet-4-20250514)</span></label>
+              <input type="text" id="cfgClaudeModel" class="input-field" placeholder="claude-sonnet-4-20250514" />
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>System Prompt Kustom (opsional)</label>
+            <textarea id="cfgSystemPrompt" class="input-field" rows="4" placeholder="Instruksi tambahan untuk AI (karakter, gaya penulisan, larangan, dll)..."></textarea>
+          </div>
+
+          <div class="form-group">
+            <label>Kecepatan Mengetik (Human Simulation)</label>
+            <select id="cfgTypingSpeed" class="input-field">
+              <option value="slow">Lambat (lebih natural)</option>
+              <option value="medium" selected>Sedang</option>
+              <option value="fast">Cepat</option>
+            </select>
+          </div>
+
+          <div class="form-group settings-block">
+            <div class="settings-block-header">🖼️ IMAGE AI — Generator Gambar</div>
+            <p class="settings-block-desc">Gunakan API OpenAI-compatible untuk generate gambar otomatis saat opsi "Gambar AI" diaktifkan di Studio.</p>
+            <div class="form-group">
+              <label>API Endpoint</label>
+              <input type="text" id="cfgImageEndpoint" class="input-field" placeholder="https://api.openai.com/v1/images/generations" />
+            </div>
+            <div class="form-group">
+              <label>Model</label>
+              <input type="text" id="cfgImageModel" class="input-field" placeholder="dall-e-3, flux-dev, dll." />
+            </div>
+            <div class="form-group" style="margin-bottom:0;">
+              <label>API Key</label>
+              <input type="password" id="cfgImageApiKey" class="input-field" placeholder="sk-..." />
+            </div>
+          </div>
+
+          <button class="btn btn-primary" id="btnSaveSettings">💾 Simpan Pengaturan</button>
+        </div>
+      </section>
+
+      <!-- TAB 4: LOGS -->
+      <section class="tab-view" id="view-logs">
+        <div class="card">
+          <div class="card-header">
+            <h2>📋 Riwayat Aktivitas</h2>
+            <button class="btn-sm btn-outline" id="btnRefreshLogs" type="button">↻ Refresh</button>
+          </div>
+          <div id="logsList">
+            <div class="empty-state"><p>Belum ada riwayat aktivitas.</p></div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <script type="module" src="../src/sidepanel/sidepanel.js"></script>
+</body>
+</html>
