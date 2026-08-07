@@ -191,23 +191,39 @@
       return false;
     }
   }
+  function dispatchDraftBeforeInput(element, inputType, data = null) {
+    try {
+      const dt = new DataTransfer();
+      if (data) dt.setData("text/plain", data);
+      const ev = new InputEvent("beforeinput", {
+        bubbles: true,
+        cancelable: true,
+        inputType,
+        data
+      });
+      Object.defineProperty(ev, "dataTransfer", { get: () => dt, configurable: true });
+      Object.defineProperty(ev, "getTargetRanges", { get: () => () => [], configurable: true });
+      element.dispatchEvent(ev);
+    } catch (e) {
+      try {
+        element.dispatchEvent(new InputEvent("beforeinput", {
+          bubbles: true,
+          cancelable: true,
+          inputType,
+          data
+        }));
+      } catch (err) {
+      }
+    }
+  }
   async function insertDraftJsText(element, text) {
     placeCaretAtEnd(element);
     try {
       const lines = text.split("\n");
       lines.forEach((line, i) => {
-        element.dispatchEvent(new InputEvent("beforeinput", {
-          bubbles: true,
-          cancelable: true,
-          inputType: "insertText",
-          data: line
-        }));
+        dispatchDraftBeforeInput(element, "insertText", line);
         if (i < lines.length - 1) {
-          element.dispatchEvent(new InputEvent("beforeinput", {
-            bubbles: true,
-            cancelable: true,
-            inputType: "insertParagraph"
-          }));
+          dispatchDraftBeforeInput(element, "insertParagraph");
         }
       });
       await new Promise((r) => setTimeout(r, 150));
@@ -216,12 +232,7 @@
     if (hasDraftBlocks(element)) return true;
     placeCaretAtEnd(element);
     try {
-      element.dispatchEvent(new InputEvent("beforeinput", {
-        bubbles: true,
-        cancelable: true,
-        inputType: "insertText",
-        data: text
-      }));
+      dispatchDraftBeforeInput(element, "insertText", text);
       await new Promise((r) => setTimeout(r, 150));
     } catch (e) {
     }
