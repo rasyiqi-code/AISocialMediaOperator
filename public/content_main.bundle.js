@@ -219,37 +219,31 @@
   async function insertDraftJsText(element, text) {
     placeCaretAtEnd(element);
     try {
+      document.execCommand("selectAll", false, null);
+      document.execCommand("delete", false, null);
+    } catch (e) {
+    }
+    placeCaretAtEnd(element);
+    try {
       const lines = text.split("\n");
       lines.forEach((line, i) => {
-        dispatchDraftBeforeInput(element, "insertText", line);
+        if (line) document.execCommand("insertText", false, line);
         if (i < lines.length - 1) {
-          dispatchDraftBeforeInput(element, "insertParagraph");
+          document.execCommand("insertParagraph", false, null);
         }
       });
       await new Promise((r) => setTimeout(r, 150));
     } catch (e) {
     }
     if (hasDraftBlocks(element)) return true;
-    placeCaretAtEnd(element);
     try {
       dispatchDraftBeforeInput(element, "insertText", text);
       await new Promise((r) => setTimeout(r, 150));
     } catch (e) {
     }
     if (hasDraftBlocks(element)) return true;
-    placeCaretAtEnd(element);
-    try {
-      const lines = text.split("\n");
-      lines.forEach((line, i) => {
-        if (line) document.execCommand("insertText", false, line);
-        if (i < lines.length - 1) document.execCommand("insertText", false, "\n");
-      });
-      await new Promise((r) => setTimeout(r, 120));
-    } catch (e) {
-    }
-    if (hasDraftBlocks(element)) return true;
     insertDraftJsPaste(element, text);
-    await new Promise((r) => setTimeout(r, 120));
+    await new Promise((r) => setTimeout(r, 150));
     return (element.textContent || "").trim().length > 0;
   }
   var simulateHumanTyping = async (element, text, speedMode = "medium") => {
@@ -259,6 +253,14 @@
       targetNode = element.querySelector('div[contenteditable="true"]');
     }
     targetNode.focus();
+    if (targetNode.tagName === "INPUT" || targetNode.tagName === "TEXTAREA") {
+      setNativeInputValue(targetNode, text);
+      return;
+    }
+    if (isDraftJsEditor(targetNode)) {
+      await insertDraftJsText(targetNode, text);
+      return;
+    }
     try {
       if (targetNode.isConnected) {
         const sel = window.getSelection();
@@ -271,14 +273,6 @@
         targetNode.innerHTML = "";
       }
     } catch (e) {
-    }
-    if (targetNode.tagName === "INPUT" || targetNode.tagName === "TEXTAREA") {
-      setNativeInputValue(targetNode, text);
-      return;
-    }
-    if (isDraftJsEditor(targetNode)) {
-      await insertDraftJsText(targetNode, text);
-      return;
     }
     insertViaBeforeInput(targetNode, text);
     await new Promise((r) => setTimeout(r, 60));

@@ -292,67 +292,78 @@ function hasDraftBlocks(element) {
 }
 
 /**
+ * Safely dispatch a synthetic beforeinput event for Draft.js with mock dataTransfer.types
+ * and getTargetRanges to prevent uncaught TypeErrors in X's Draft.js bundle.
+ */
+function dispatchDraftBeforeInput(element, inputType, data = null) {
+  try {
+    const dt = new DataTransfer();
+    if (data) dt.setData('text/plain', data);
+
+    const ev = new InputEvent('beforeinput', {
+      bubbles: true,
+      cancelable: true,
+      inputType,
+      data
+    });
+    Object.defineProperty(ev, 'dataTransfer', { get: () => dt, configurable: true });
+    Object.defineProperty(ev, 'getTargetRanges', { get: () => () => [], configurable: true });
+    element.dispatchEvent(ev);
+  } catch (e) {
+    try {
+      element.dispatchEvent(new InputEvent('beforeinput', {
+        bubbles: true, cancelable: true, inputType, data
+      }));
+    } catch (err) {}
+  }
+}
+
+/**
  * Draft.js-safe insertion for X's reply composer.
  *
- * The decisive detail is CARET PLACEMENT, not the event type: Draft.js only
- * commits native edits when the selection sits INSIDE one of its
- * `[data-block]` elements. A caret on the outer `.public-DraftEditor-content`
- * node makes text land flat (outside the blocks) and EditorState stays empty,
- * so the Reply button never enables. `placeCaretAtEnd` now descends into the
- * last block, so a native `execCommand('insertText')` becomes a real Draft
- * edit. Synthetic `beforeinput` and a paste simulation are fallbacks.
+ * The decisive detail is CARET PLACEMENT + native insertion: Draft.js only
+ * commits edits when the selection sits INSIDE one of its `[data-block]` elements.
+ * Preserving the `[data-block]` DOM tree (by using selectAll+delete instead of
+ * innerHTML='') and placing caret inside the block allows native `execCommand('insertText')`
+ * to update Draft.js EditorState and enable the Reply button (aria-disabled="false").
  */
 async function insertDraftJsText(element, text) {
   placeCaretAtEnd(element);
 
-  // Primary: synthetic beforeinput 'insertText'. X's Draft.js React handler
-  // reads the `data` field and commits it INTO its block structure (creates the
-  // `[data-block]` + `span[data-text]` you see in the 01:49 dump), which updates
-  // EditorState and enables the Reply button. Bare execCommand('insertText') and
-  // synthetic paste instead drop FLAT text outside the blocks (dump 02:07/09/18:
-  // composerInputHtml divBlocks: 0, placeholder still visible) — never use them
-  // first.
+  // Clear existing text via selectAll+delete to preserve Draft.js block tree
   try {
-    const lines = text.split('\n');
-    lines.forEach((line, i) => {
-      element.dispatchEvent(new InputEvent('beforeinput', {
-        bubbles: true, cancelable: true, inputType: 'insertText', data: line
-      }));
-      if (i < lines.length - 1) {
-        element.dispatchEvent(new InputEvent('beforeinput', {
-          bubbles: true, cancelable: true, inputType: 'insertParagraph'
-        }));
-      }
-    });
-    await new Promise(r => setTimeout(r, 150));
+    document.execCommand('selectAll', false, null);
+    document.execCommand('delete', false, null);
   } catch (e) {}
-  if (hasDraftBlocks(element)) return true;
 
-  // Fallback 1: single beforeinput with the full text.
   placeCaretAtEnd(element);
-  try {
-    element.dispatchEvent(new InputEvent('beforeinput', {
-      bubbles: true, cancelable: true, inputType: 'insertText', data: text
-    }));
-    await new Promise(r => setTimeout(r, 150));
-  } catch (e) {}
-  if (hasDraftBlocks(element)) return true;
 
-  // Fallback 2: execCommand per line (flat, kept only as last-ditch).
-  placeCaretAtEnd(element);
+  // Primary: Native execCommand('insertText') inside the block
   try {
     const lines = text.split('\n');
     lines.forEach((line, i) => {
       if (line) document.execCommand('insertText', false, line);
-      if (i < lines.length - 1) document.execCommand('insertText', false, '\n');
+      if (i < lines.length - 1) {
+        document.execCommand('insertParagraph', false, null);
+      }
     });
-    await new Promise(r => setTimeout(r, 120));
+    await new Promise(r => setTimeout(r, 150));
   } catch (e) {}
+
   if (hasDraftBlocks(element)) return true;
 
-  // Fallback 3: paste simulation.
+  // Fallback 1: dispatchDraftBeforeInput with mock dataTransfer
+  try {
+    dispatchDraftBeforeInput(element, 'insertText', text);
+    await new Promise(r => setTimeout(r, 150));
+  } catch (e) {}
+
+  if (hasDraftBlocks(element)) return true;
+
+  // Fallback 2: paste simulation
   insertDraftJsPaste(element, text);
-  await new Promise(r => setTimeout(r, 120));
+  await new Promise(r => setTimeout(r, 150));
+
   return (element.textContent || '').trim().length > 0;
 }
 
@@ -370,7 +381,18 @@ export const simulateHumanTyping = async (element, text, speedMode = 'medium') =
 
   targetNode.focus();
 
-  // Clear existing content inside input element cleanly
+  if (targetNode.tagName === 'INPUT' || targetNode.tagName === 'TEXTAREA') {
+    setNativeInputValue(targetNode, text);
+    return;
+  }
+
+  // Draft.js (X / Twitter) editors must preserve data-block structure
+  if (isDraftJsEditor(targetNode)) {
+    await insertDraftJsText(targetNode, text);
+    return;
+  }
+
+  // Clear existing content inside standard input elements cleanly
   try {
     if (targetNode.isConnected) {
       const sel = window.getSelection();
@@ -383,18 +405,6 @@ export const simulateHumanTyping = async (element, text, speedMode = 'medium') =
       targetNode.innerHTML = '';
     }
   } catch (e) {}
-
-  if (targetNode.tagName === 'INPUT' || targetNode.tagName === 'TEXTAREA') {
-    setNativeInputValue(targetNode, text);
-    return;
-  }
-
-  // Draft.js (X / Twitter) editors must be driven via paste simulation so the
-  // EditorState updates and the Reply button actually enables.
-  if (isDraftJsEditor(targetNode)) {
-    await insertDraftJsText(targetNode, text);
-    return;
-  }
 
   // 1) Lexical-friendly beforeinput (insertText + insertParagraph)
   insertViaBeforeInput(targetNode, text);
