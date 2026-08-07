@@ -190,45 +190,224 @@ const insertWithParagraphs = (element, text) => {
 };
 
 /**
+ * Detect a Draft.js editor (X / Twitter). Draft.js only advances its
+ * EditorState for events it explicitly handles; raw DOM mutations or bare
+ * `beforeinput`/`keydown` events leave the state empty even though text may
+ * appear in the DOM. It must be driven via paste or native input.
+ */
+function isDraftJsEditor(element) {
+  try {
+    if (!element) return false;
+    return !!(
+      element.closest('.DraftEditor-root') ||
+      element.closest('.DraftEditor-editorContainer') ||
+      element.querySelector('.DraftEditor-root') ||
+      element.querySelector('.DraftEditor-editorContainer') ||
+      (element.getAttribute('data-testid') || '').includes('tweetTextarea') ||
+      element.closest('[data-testid*="tweetTextarea"]')
+    );
+  } catch (e) {
+    return false;
+  }
+}
+
+/**
+ * Place the caret at the end of a contenteditable editor. For Draft.js editors
+ * (X reply composer) the caret MUST be placed inside a Draft block
+ * (`[data-block="true"]`), not on the outer editor node: Draft.js only picks up
+ * native edits` (such as `execCommand('insertText')`) when the selection lives
+ * inside one of its blocks. A caret on the outer node writes flat text outside
+ * the blocks, which never reaches EditorState and so the Reply button stays
+ * disabled. Fall back to a direct node scan if the attribute selector differs.
+ */
+function placeCaretAtEnd(element) {
+  try {
+    if (!element || !element.isConnected) return;
+    element.focus();
+
+    // Pick a target that is guaranteed connected. Start with the editor node
+    // itself; if it exposes a Draft block tree, descend into the last block so
+    // native edits land inside a block (and avoid "range isn't in document"
+    // errors by skipping any node that is detached).
+    let target = element;
+    if (element.closest && element.closest('.DraftEditor-root') && element.querySelector('[data-contents="true"]')) {
+      const container = element.querySelector('[data-contents="true"]');
+      const blocks = Array.from(container.querySelectorAll('[data-block="true"]'));
+      if (blocks.length) {
+        target = blocks[blocks.length - 1];
+        if (!target.isConnected) target = element;
+      }
+    }
+
+    const range = document.createRange();
+    range.selectNodeContents(target);
+    range.collapse(false);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+  } catch (e) {}
+}
+
+/**
+ * Draft.js-safe insertion via paste simulation. Draft.js handles `paste` by
+ * reading clipboardData and committing the text into its EditorState — the only
+ * synthetic path that reliably enables the Reply button (unlike execCommand or
+ * DOM writes, which leave EditorState empty so the placeholder never clears).
+ */
+const insertDraftJsPaste = (element, text) => {
+  placeCaretAtEnd(element);
+  try {
+    const dt = new DataTransfer();
+    dt.setData('text/plain', text);
+    const html = text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .split('\n')
+      .map(line => `<div>${line}</div>`)
+      .join('');
+    dt.setData('text/html', html);
+
+    const evt = new Event('paste', { bubbles: true, cancelable: true });
+    Object.defineProperty(evt, 'clipboardData', { get: () => dt });
+    element.dispatchEvent(evt);
+  } catch (e) {}
+};
+
+/**
+ * Detect whether text landed inside Draft.js's block structure (data-editor
+ * blocks with <span data-offset-key>), which means EditorState was updated and
+ * the Reply button will enable. Flat text (no data-blocks) means Draft state is
+ * still empty and the placeholder/disabled button persist.
+ */
+function hasDraftBlocks(element) {
+  try {
+    const hasText = (element.textContent || '').trim().length > 0;
+    const hasBlocks = !!element.querySelector('div[data-block="true"] [data-offset-key], [data-editor] .public-DraftStyleDefault-block');
+    if (hasText && !hasBlocks) return false;
+    return hasText;
+  } catch (e) {
+    return false;
+  }
+}
+
+/**
+ * Draft.js-safe insertion for X's reply composer.
+ *
+ * The decisive detail is CARET PLACEMENT, not the event type: Draft.js only
+ * commits native edits when the selection sits INSIDE one of its
+ * `[data-block]` elements. A caret on the outer `.public-DraftEditor-content`
+ * node makes text land flat (outside the blocks) and EditorState stays empty,
+ * so the Reply button never enables. `placeCaretAtEnd` now descends into the
+ * last block, so a native `execCommand('insertText')` becomes a real Draft
+ * edit. Synthetic `beforeinput` and a paste simulation are fallbacks.
+ */
+async function insertDraftJsText(element, text) {
+  placeCaretAtEnd(element);
+
+  // Primary: synthetic beforeinput 'insertText'. X's Draft.js React handler
+  // reads the `data` field and commits it INTO its block structure (creates the
+  // `[data-block]` + `span[data-text]` you see in the 01:49 dump), which updates
+  // EditorState and enables the Reply button. Bare execCommand('insertText') and
+  // synthetic paste instead drop FLAT text outside the blocks (dump 02:07/09/18:
+  // composerInputHtml divBlocks: 0, placeholder still visible) — never use them
+  // first.
+  try {
+    const lines = text.split('\n');
+    lines.forEach((line, i) => {
+      element.dispatchEvent(new InputEvent('beforeinput', {
+        bubbles: true, cancelable: true, inputType: 'insertText', data: line
+      }));
+      if (i < lines.length - 1) {
+        element.dispatchEvent(new InputEvent('beforeinput', {
+          bubbles: true, cancelable: true, inputType: 'insertParagraph'
+        }));
+      }
+    });
+    await new Promise(r => setTimeout(r, 150));
+  } catch (e) {}
+  if (hasDraftBlocks(element)) return true;
+
+  // Fallback 1: single beforeinput with the full text.
+  placeCaretAtEnd(element);
+  try {
+    element.dispatchEvent(new InputEvent('beforeinput', {
+      bubbles: true, cancelable: true, inputType: 'insertText', data: text
+    }));
+    await new Promise(r => setTimeout(r, 150));
+  } catch (e) {}
+  if (hasDraftBlocks(element)) return true;
+
+  // Fallback 2: execCommand per line (flat, kept only as last-ditch).
+  placeCaretAtEnd(element);
+  try {
+    const lines = text.split('\n');
+    lines.forEach((line, i) => {
+      if (line) document.execCommand('insertText', false, line);
+      if (i < lines.length - 1) document.execCommand('insertText', false, '\n');
+    });
+    await new Promise(r => setTimeout(r, 120));
+  } catch (e) {}
+  if (hasDraftBlocks(element)) return true;
+
+  // Fallback 3: paste simulation.
+  insertDraftJsPaste(element, text);
+  await new Promise(r => setTimeout(r, 120));
+  return (element.textContent || '').trim().length > 0;
+}
+
+/**
  * Single, clean, reliable typing simulator without double paste/execCommand duplication
  */
 export const simulateHumanTyping = async (element, text, speedMode = 'medium') => {
   if (!element) return;
-  element.focus();
+
+  // Resolve to actual contenteditable element if wrapper passed
+  let targetNode = element;
+  if (element.getAttribute('contenteditable') !== 'true' && element.querySelector('div[contenteditable="true"]')) {
+    targetNode = element.querySelector('div[contenteditable="true"]');
+  }
+
+  targetNode.focus();
 
   // Clear existing content inside input element cleanly
   try {
-    if (element.isConnected) {
+    if (targetNode.isConnected) {
       const sel = window.getSelection();
       const range = document.createRange();
-      range.selectNodeContents(element);
+      range.selectNodeContents(targetNode);
       sel.removeAllRanges();
       sel.addRange(range);
       document.execCommand('delete', false, null);
     } else {
-      element.innerHTML = '';
+      targetNode.innerHTML = '';
     }
   } catch (e) {}
 
-  if (element.tagName === 'INPUT' || element.tagName === 'TEXTAREA') {
-    setNativeInputValue(element, text);
+  if (targetNode.tagName === 'INPUT' || targetNode.tagName === 'TEXTAREA') {
+    setNativeInputValue(targetNode, text);
     return;
   }
 
-  // 1) Lexical-friendly beforeinput (insertText + insertParagraph) — this is
-  //    what Threads actually honors, creating REAL paragraph breaks for blank
-  //    lines instead of the soft `<br>` breaks execCommand produces.
-  insertViaBeforeInput(element, text);
-  await new Promise(r => setTimeout(r, 60));
-  if ((element.textContent || '').trim()) { triggerEvents(element); return; }
+  // Draft.js (X / Twitter) editors must be driven via paste simulation so the
+  // EditorState updates and the Reply button actually enables.
+  if (isDraftJsEditor(targetNode)) {
+    await insertDraftJsText(targetNode, text);
+    return;
+  }
 
-  // 2) Paste simulation — paragraph preservation for editors that accept it.
-  const pasted = await pasteAndVerify(element, text);
-  if (pasted) { triggerEvents(element); return; }
+  // 1) Lexical-friendly beforeinput (insertText + insertParagraph)
+  insertViaBeforeInput(targetNode, text);
+  await new Promise(r => setTimeout(r, 60));
+  if ((targetNode.textContent || '').trim()) { triggerEvents(targetNode); return; }
+
+  // 2) Paste simulation
+  const pasted = await pasteAndVerify(targetNode, text);
+  if (pasted) { triggerEvents(targetNode); return; }
 
   // 3) Last resort: legacy execCommand path.
-  insertWithParagraphs(element, text);
-  triggerEvents(element);
+  insertWithParagraphs(targetNode, text);
+  triggerEvents(targetNode);
 };
 
 /**

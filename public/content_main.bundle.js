@@ -138,39 +138,150 @@
       }
     });
   };
+  function isDraftJsEditor(element) {
+    try {
+      if (!element) return false;
+      return !!(element.closest(".DraftEditor-root") || element.closest(".DraftEditor-editorContainer") || element.querySelector(".DraftEditor-root") || element.querySelector(".DraftEditor-editorContainer") || (element.getAttribute("data-testid") || "").includes("tweetTextarea") || element.closest('[data-testid*="tweetTextarea"]'));
+    } catch (e) {
+      return false;
+    }
+  }
+  function placeCaretAtEnd(element) {
+    try {
+      if (!element || !element.isConnected) return;
+      element.focus();
+      let target = element;
+      if (element.closest && element.closest(".DraftEditor-root") && element.querySelector('[data-contents="true"]')) {
+        const container = element.querySelector('[data-contents="true"]');
+        const blocks = Array.from(container.querySelectorAll('[data-block="true"]'));
+        if (blocks.length) {
+          target = blocks[blocks.length - 1];
+          if (!target.isConnected) target = element;
+        }
+      }
+      const range = document.createRange();
+      range.selectNodeContents(target);
+      range.collapse(false);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+    } catch (e) {
+    }
+  }
+  var insertDraftJsPaste = (element, text) => {
+    placeCaretAtEnd(element);
+    try {
+      const dt = new DataTransfer();
+      dt.setData("text/plain", text);
+      const html = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").split("\n").map((line) => `<div>${line}</div>`).join("");
+      dt.setData("text/html", html);
+      const evt = new Event("paste", { bubbles: true, cancelable: true });
+      Object.defineProperty(evt, "clipboardData", { get: () => dt });
+      element.dispatchEvent(evt);
+    } catch (e) {
+    }
+  };
+  function hasDraftBlocks(element) {
+    try {
+      const hasText = (element.textContent || "").trim().length > 0;
+      const hasBlocks = !!element.querySelector('div[data-block="true"] [data-offset-key], [data-editor] .public-DraftStyleDefault-block');
+      if (hasText && !hasBlocks) return false;
+      return hasText;
+    } catch (e) {
+      return false;
+    }
+  }
+  async function insertDraftJsText(element, text) {
+    placeCaretAtEnd(element);
+    try {
+      const lines = text.split("\n");
+      lines.forEach((line, i) => {
+        element.dispatchEvent(new InputEvent("beforeinput", {
+          bubbles: true,
+          cancelable: true,
+          inputType: "insertText",
+          data: line
+        }));
+        if (i < lines.length - 1) {
+          element.dispatchEvent(new InputEvent("beforeinput", {
+            bubbles: true,
+            cancelable: true,
+            inputType: "insertParagraph"
+          }));
+        }
+      });
+      await new Promise((r) => setTimeout(r, 150));
+    } catch (e) {
+    }
+    if (hasDraftBlocks(element)) return true;
+    placeCaretAtEnd(element);
+    try {
+      element.dispatchEvent(new InputEvent("beforeinput", {
+        bubbles: true,
+        cancelable: true,
+        inputType: "insertText",
+        data: text
+      }));
+      await new Promise((r) => setTimeout(r, 150));
+    } catch (e) {
+    }
+    if (hasDraftBlocks(element)) return true;
+    placeCaretAtEnd(element);
+    try {
+      const lines = text.split("\n");
+      lines.forEach((line, i) => {
+        if (line) document.execCommand("insertText", false, line);
+        if (i < lines.length - 1) document.execCommand("insertText", false, "\n");
+      });
+      await new Promise((r) => setTimeout(r, 120));
+    } catch (e) {
+    }
+    if (hasDraftBlocks(element)) return true;
+    insertDraftJsPaste(element, text);
+    await new Promise((r) => setTimeout(r, 120));
+    return (element.textContent || "").trim().length > 0;
+  }
   var simulateHumanTyping = async (element, text, speedMode = "medium") => {
     if (!element) return;
-    element.focus();
+    let targetNode = element;
+    if (element.getAttribute("contenteditable") !== "true" && element.querySelector('div[contenteditable="true"]')) {
+      targetNode = element.querySelector('div[contenteditable="true"]');
+    }
+    targetNode.focus();
     try {
-      if (element.isConnected) {
+      if (targetNode.isConnected) {
         const sel = window.getSelection();
         const range = document.createRange();
-        range.selectNodeContents(element);
+        range.selectNodeContents(targetNode);
         sel.removeAllRanges();
         sel.addRange(range);
         document.execCommand("delete", false, null);
       } else {
-        element.innerHTML = "";
+        targetNode.innerHTML = "";
       }
     } catch (e) {
     }
-    if (element.tagName === "INPUT" || element.tagName === "TEXTAREA") {
-      setNativeInputValue(element, text);
+    if (targetNode.tagName === "INPUT" || targetNode.tagName === "TEXTAREA") {
+      setNativeInputValue(targetNode, text);
       return;
     }
-    insertViaBeforeInput(element, text);
+    if (isDraftJsEditor(targetNode)) {
+      await insertDraftJsText(targetNode, text);
+      return;
+    }
+    insertViaBeforeInput(targetNode, text);
     await new Promise((r) => setTimeout(r, 60));
-    if ((element.textContent || "").trim()) {
-      triggerEvents(element);
+    if ((targetNode.textContent || "").trim()) {
+      triggerEvents(targetNode);
       return;
     }
-    const pasted = await pasteAndVerify(element, text);
+    const pasted = await pasteAndVerify(targetNode, text);
     if (pasted) {
-      triggerEvents(element);
+      triggerEvents(targetNode);
       return;
     }
-    insertWithParagraphs(element, text);
-    triggerEvents(element);
+    insertWithParagraphs(targetNode, text);
+    triggerEvents(targetNode);
   };
   var randomDelay = (minSeconds = 3, maxSeconds = 10) => {
     const ms = Math.floor((Math.random() * (maxSeconds - minSeconds) + minSeconds) * 1e3);
@@ -253,8 +364,9 @@
      */
     findVisibleDialog(predicate) {
       return Array.from(document.querySelectorAll('[role="dialog"], [role="menu"]')).filter((d) => {
+        if (!d.isConnected) return false;
         const r = d.getBoundingClientRect();
-        return r.width > 0 && r.height > 0 && d.offsetParent !== null;
+        return r.width > 0 && r.height > 0;
       }).find(predicate) || null;
     },
     /**
@@ -1754,94 +1866,76 @@
     } catch (e) {
     }
   }
-  function fbSetLexicalText(element, text) {
-    if (!element) return;
-    element.focus();
-    try {
-      const sel = window.getSelection();
-      const range = document.createRange();
-      range.selectNodeContents(element);
-      sel.removeAllRanges();
-      sel.addRange(range);
-      document.execCommand("delete", false, null);
-    } catch (e) {
-    }
-    element.focus();
-    try {
-      const sel = window.getSelection();
-      const range = document.createRange();
-      range.selectNodeContents(element);
-      range.collapse(false);
-      sel.removeAllRanges();
-      sel.addRange(range);
-    } catch (e) {
-    }
-    let inserted = false;
-    try {
-      inserted = document.execCommand("insertText", false, text);
-    } catch (e) {
-    }
-    if (!inserted || !element.textContent || !element.textContent.trim()) {
-      element.innerHTML = `<p class="xdj266r x14z9mp xat24cr x1lziwak" dir="auto"><span data-lexical-text="true">${text}</span></p>`;
-    }
-    ["focus", "keydown", "input", "keyup", "change"].forEach((evtType) => {
-      try {
-        element.dispatchEvent(new Event(evtType, { bubbles: true, cancelable: true }));
-      } catch (e) {
-      }
-    });
-    try {
-      element.dispatchEvent(new InputEvent("input", {
-        bubbles: true,
-        cancelable: true,
-        inputType: "insertText",
-        data: text
-      }));
-    } catch (e) {
-    }
+  function fbIsVisible(el) {
+    if (!el || !el.isConnected) return false;
+    const rect = el.getBoundingClientRect();
+    return rect.width > 0 && rect.height > 0;
   }
-  function findFbCommentSubmitButton(scope) {
+  function findFbCommentSubmitButton(scope, inputEl = null) {
     if (!scope) return null;
     const allBtns = Array.from(scope.querySelectorAll('[role="button"], button'));
+    const isUnrelated = (el) => {
+      if (el.getAttribute("aria-hidden") === "true") return true;
+      const label = (el.getAttribute("aria-label") || "").trim().toLowerCase();
+      const text = (el.textContent || "").trim().toLowerCase();
+      const meta = label || text;
+      if (!meta) return true;
+      if (meta.includes("kirim ini") || meta.includes("bagikan") || meta.includes("share") || meta.includes("teman atau posting di profil") || meta.includes("tindakan untuk") || meta.includes("tandai sebagai dibaca")) return true;
+      if (meta.includes("suka") || meta.includes("like") || meta.includes("reaksi") || meta.includes("reaction") || meta.includes("tutup") || meta.includes("close")) return true;
+      return false;
+    };
     const exactLabels = ["posting komentar", "post comment", "kirim komentar", "send comment", "kirim", "send"];
     for (const btn of allBtns) {
+      if (isUnrelated(btn)) continue;
       const label = (btn.getAttribute("aria-label") || "").trim().toLowerCase();
       if (exactLabels.includes(label)) return btn;
     }
     for (const btn of allBtns) {
+      if (isUnrelated(btn)) continue;
       const label = (btn.getAttribute("aria-label") || "").trim().toLowerCase();
       if (label.startsWith("posting") || label.startsWith("kirim")) {
         return btn;
       }
     }
     for (const btn of allBtns) {
+      if (isUnrelated(btn)) continue;
       const text = (btn.textContent || "").trim().toLowerCase();
       if (text === "kirim" || text === "send" || text === "posting" || text === "post") {
         return btn;
       }
     }
+    if (inputEl) {
+      const container = inputEl.closest("form") || inputEl.closest('div[class*="notranslate"]') || inputEl.parentElement?.parentElement?.parentElement || inputEl.parentElement;
+      if (container) {
+        const iconBtns = Array.from(container.querySelectorAll('[role="button"], button')).filter((b) => {
+          if (b.getAttribute("aria-hidden") === "true") return false;
+          if (b.getAttribute("aria-disabled") === "true") return false;
+          const label = (b.getAttribute("aria-label") || "").trim();
+          const text = (b.textContent || "").trim();
+          return !label && !text;
+        });
+        if (iconBtns.length === 1) return iconBtns[0];
+      }
+    }
     return null;
   }
   async function closeFbModal(dialog = null) {
-    const targetDialog = dialog || document.querySelector('[role="dialog"]');
-    if (!targetDialog) return;
+    const targetDialog = dialog || Array.from(document.querySelectorAll('[role="dialog"]')).find(fbIsVisible);
+    if (!targetDialog || !fbIsVisible(targetDialog)) return true;
     console.log("[FacebookInteraction] Closing open modal dialog...");
-    const closeBtn = targetDialog.querySelector('[aria-label="Tutup"]') || targetDialog.querySelector('[aria-label="Close"]') || targetDialog.querySelector('[aria-label="Tutup"][role="button"]') || targetDialog.querySelector('[aria-label="Close"][role="button"]') || document.querySelector('[role="dialog"] [aria-label="Tutup"]') || document.querySelector('[role="dialog"] [aria-label="Close"]');
+    const closeBtn = targetDialog.querySelector(
+      '[aria-label="Tutup"][role="button"], [aria-label="Tutup"], [aria-label="Close"][role="button"], [aria-label="Close"]'
+    );
     if (closeBtn) {
       fbClick(closeBtn, true);
       await randomDelay(1, 1.8);
+      if (!Array.from(document.querySelectorAll('[role="dialog"]')).some(fbIsVisible)) return true;
     }
-    if (document.querySelector('[role="dialog"]')) {
-      document.dispatchEvent(new KeyboardEvent("keydown", {
-        key: "Escape",
-        code: "Escape",
-        keyCode: 27,
-        which: 27,
-        bubbles: true,
-        cancelable: true
-      }));
-      await randomDelay(1, 1.5);
-    }
+    const esc = { key: "Escape", code: "Escape", keyCode: 27, which: 27, bubbles: true, cancelable: true };
+    document.dispatchEvent(new KeyboardEvent("keydown", esc));
+    window.dispatchEvent(new KeyboardEvent("keydown", esc));
+    await randomDelay(1, 1.5);
+    return !Array.from(document.querySelectorAll('[role="dialog"]')).some(fbIsVisible);
   }
   function fbIsAlreadyLiked(container) {
     if (!container) return false;
@@ -1870,7 +1964,7 @@
     return article.querySelector('[aria-label="Beri komentar"][role="button"]') || article.querySelector('[aria-label="Komentar"][role="button"]') || article.querySelector('[aria-label="Comment"][role="button"]') || Array.from(article.querySelectorAll('[role="button"]')).find((el) => {
       const label = (el.getAttribute("aria-label") || "").toLowerCase();
       const text = (el.textContent || "").trim().toLowerCase();
-      return label.includes("beri komentar") || label.includes("komentar") || label.includes("comment") || text === "komentar" || text === "comment";
+      return label.includes("beri komentar") || label.includes("komentar") || label.includes("comment") || label.includes("balas") || label.includes("reply") || text === "komentar" || text === "comment" || text === "balas" || text === "reply";
     }) || null;
   }
   function findFbFollowButton(article) {
@@ -1880,6 +1974,104 @@
       const text = (el.textContent || "").trim().toLowerCase();
       return label === "ikuti" || label === "follow" || text === "ikuti" || text === "follow";
     }) || null;
+  }
+  function findFbShareButton(article) {
+    if (!article) return null;
+    return article.querySelector('[aria-label*="Kirim ini ke teman"][role="button"]') || article.querySelector('[aria-label*="Send this to friends"][role="button"]') || article.querySelector('[aria-label*="posting di profil"][role="button"]') || article.querySelector('[aria-label*="post on your profile"][role="button"]') || article.querySelector('[aria-label^="Bagikan"][role="button"]') || article.querySelector('[aria-label^="Share"][role="button"]') || Array.from(article.querySelectorAll('[role="button"]')).find((el) => {
+      const label = (el.getAttribute("aria-label") || "").toLowerCase();
+      return label.includes("kirim ini") || label.includes("bagikan") || label.includes("share") || label.includes("send this to friends");
+    }) || null;
+  }
+  function findFbShareDialog() {
+    return Array.from(document.querySelectorAll('[role="dialog"]')).find((d) => {
+      if (!fbIsVisible(d)) return false;
+      const txt = (d.textContent || "").toLowerCase();
+      return txt.includes("bagikan sekarang") || txt.includes("share now");
+    }) || null;
+  }
+  function fbNormalizeProfileUrl(href) {
+    if (!href) return "";
+    const url = href.startsWith("http") ? href : "https://www.facebook.com" + href;
+    const idMatch = url.match(/profile\.php\?[^#]*id=(\d+)/);
+    if (idMatch) return "id:" + idMatch[1];
+    const path = url.replace(/^https:\/\/(www\.|web\.|m\.|mbasic\.)?facebook\.com\/?/i, "").split(/[?#]/)[0].replace(/\/$/, "");
+    return path;
+  }
+  function findFbFriendLinks() {
+    const scope = document.querySelector('div[role="main"]') || document.body;
+    const skipPath = /^(friends\/?$|groups|watch|marketplace|messages|direct|story|stories|reel|reels|events|pages|settings|help|policy|about|policies|login|home|notifications|find-friends|saved|profile|me|p|sharer|intent|hashtag|photo|videos?|people|search|pay|fundraisers|gaming|jobs|shortform|friends_lists|invite|campaign|business|apps|game|live|comments|privacy|support|account|security|welcome|requests|fundraiser|payments|gifts|notes|photo_fbid|change_name|contact|friends_tab|reviews|list|wellbeing|local|shortcuts|watch_tab|gaming_tab|videos_tab)/i;
+    const results = /* @__PURE__ */ new Map();
+    const anchors = scope.querySelectorAll("a[href]");
+    for (const a of anchors) {
+      const href = a.getAttribute("href") || "";
+      if (!href || href.startsWith("#") || href.startsWith("javascript")) continue;
+      const key = fbNormalizeProfileUrl(href);
+      if (!key || key === "friends" || key === "friends/" || skipPath.test(key)) continue;
+      if (key.startsWith("id:")) {
+      } else if (key.includes("/") || key.length < 3) {
+        continue;
+      }
+      let name = (a.getAttribute("aria-label") || a.getAttribute("title") || "").trim();
+      if (!name) {
+        const img = a.querySelector("img");
+        if (img) name = (img.getAttribute("alt") || "").trim();
+      }
+      if (!name) {
+        const txt = (a.textContent || "").replace(/\s+/g, " ").trim();
+        if (txt.length > 0 && txt.length < 40) name = txt;
+      }
+      if (!name) continue;
+      if (!results.has(key)) results.set(key, { url: href, name, el: a });
+    }
+    return Array.from(results.values());
+  }
+  async function processOpenFbCommentDialog(generateCommentFn) {
+    const dialog = Array.from(document.querySelectorAll('[role="dialog"]')).find(fbIsVisible);
+    if (!dialog) return { done: false, dialog: false };
+    const input = dialog.querySelector(
+      'div[contenteditable="true"][role="textbox"], div[contenteditable="true"][aria-label*="sebagai"], div[contenteditable="true"][aria-placeholder*="sebagai"], div[contenteditable="true"][data-lexical-editor="true"], div[contenteditable="true"]'
+    );
+    if (!input) {
+      await closeFbModal(dialog);
+      return { done: false, closed: true };
+    }
+    const textDivs = Array.from(dialog.querySelectorAll('div[dir="auto"], span[dir="auto"]'));
+    const parts = [];
+    for (const el of textDivs) {
+      const txt = (el.textContent || "").trim();
+      if (txt.length > 15 && !parts.includes(txt) && !txt.startsWith("Komentari sebagai")) parts.push(txt);
+    }
+    const postText = parts.join(" ").slice(0, 500) || "Postingan teman di Facebook";
+    let commentText = "";
+    if (generateCommentFn) commentText = await generateCommentFn(postText);
+    if (!commentText) {
+      await closeFbModal(dialog);
+      return { done: false, closed: true };
+    }
+    try {
+      input.focus();
+      await randomDelay(0.5, 1);
+      await simulateHumanTyping(input, commentText, "medium");
+      await randomDelay(1.2, 2.2);
+      const submitBtn = findFbCommentSubmitButton(dialog, input);
+      if (submitBtn) {
+        await randomDelay(0.5, 1);
+        fbClick(submitBtn, true);
+      } else {
+        input.focus();
+        const enterOpts = { key: "Enter", code: "Enter", keyCode: 13, which: 13, bubbles: true, cancelable: true };
+        input.dispatchEvent(new KeyboardEvent("keydown", enterOpts));
+        input.dispatchEvent(new KeyboardEvent("keypress", enterOpts));
+        input.dispatchEvent(new KeyboardEvent("keyup", enterOpts));
+      }
+      await randomDelay(2.5, 4);
+      await closeFbModal(dialog);
+      return { done: true, commentText, postText };
+    } catch (e) {
+      console.warn("[FacebookInteraction] Error typing comment in dialog:", e);
+      await closeFbModal(dialog);
+      return { done: false, closed: true };
+    }
   }
   function extractFbAuthor(article) {
     if (!article) return "User";
@@ -1902,21 +2094,56 @@
     }
     return parts.join(" ").slice(0, 500);
   }
-  function scanFbFeedPosts(maxPosts = 30) {
-    let articles = Array.from(document.querySelectorAll('div[role="article"], div[data-pagelet*="FeedUnit"]')).filter((el) => {
-      const rect = el.getBoundingClientRect();
-      if (rect.width <= 0 || rect.height <= 0) return false;
-      const ariaLabel = (el.getAttribute("aria-label") || "").toLowerCase();
-      if (ariaLabel.includes("komentar oleh") || ariaLabel.includes("balasan oleh") || ariaLabel.includes("comment by") || ariaLabel.includes("reply by")) {
-        return false;
+  function isFbPostMenu(el) {
+    if (!el) return false;
+    const label = (el.getAttribute("aria-label") || "").toLowerCase();
+    const isPostMenu = label.includes("tindakan untuk postingan") || label.includes("actions for this post") || label.includes("actions for the post") || label.includes("actions for") && !label.includes("comment");
+    if (!isPostMenu) return false;
+    return !label.includes("komentar") && !label.includes("comment");
+  }
+  function findFbPostContainers(maxPosts = 30) {
+    const btnSel = 'div[role="button"], button, [role="menuitem"]';
+    const menus = Array.from(document.querySelectorAll(btnSel)).filter(isFbPostMenu);
+    const containers = [];
+    const seen = /* @__PURE__ */ new Set();
+    for (const menu of menus) {
+      let cur = menu.parentElement;
+      let container = null;
+      for (let depth = 0; cur && depth < 12; depth++) {
+        const menuCount = Array.from(cur.querySelectorAll(btnSel)).filter(isFbPostMenu).length;
+        if (menuCount === 1) {
+          container = cur;
+        } else if (menuCount > 1) {
+          break;
+        }
+        cur = cur.parentElement;
       }
-      return true;
-    });
+      if (container && !seen.has(container)) {
+        seen.add(container);
+        containers.push(container);
+      }
+    }
+    return containers.slice(0, maxPosts);
+  }
+  function scanFbFeedPosts(maxPosts = 30) {
+    let articles = findFbPostContainers(maxPosts);
+    if (articles.length === 0) {
+      articles = Array.from(document.querySelectorAll('div[role="article"], div[data-pagelet*="FeedUnit"]')).filter((el) => {
+        const rect = el.getBoundingClientRect();
+        if (rect.width <= 0 || rect.height <= 0) return false;
+        const ariaLabel = (el.getAttribute("aria-label") || "").toLowerCase();
+        if (ariaLabel.includes("komentar oleh") || ariaLabel.includes("balasan oleh") || ariaLabel.includes("comment by") || ariaLabel.includes("reply by")) {
+          return false;
+        }
+        const hasText = (el.textContent || "").trim().length > 0;
+        const hasButtons = !!el.querySelector('[role="button"]');
+        return hasText && hasButtons;
+      }).slice(0, maxPosts);
+    }
     if (articles.length === 0) {
       const likeBtns = Array.from(document.querySelectorAll('[aria-label="Suka"][role="button"], [aria-label="Like"][role="button"]')).filter((b) => !(b.getAttribute("aria-label") || "").includes(":"));
-      articles = likeBtns.map((b) => b.closest('div[role="article"]') || b.closest("div[data-pagelet]") || b.parentElement?.parentElement?.parentElement || b).filter(Boolean);
+      articles = likeBtns.map((b) => b.closest('div[role="article"]') || b.closest("div[data-pagelet]") || b.parentElement?.parentElement?.parentElement || b).filter(Boolean).slice(0, maxPosts);
     }
-    articles = articles.slice(0, maxPosts);
     return articles.map((el, i) => ({
       index: i,
       element: el,
@@ -2071,6 +2298,7 @@
       let count = 0;
       const processedAuthors = /* @__PURE__ */ new Set();
       const processedElements = /* @__PURE__ */ new WeakSet();
+      let failedDialogCloses = 0;
       console.log("[FacebookInteraction] Auto-Comment started...");
       while (this.isRunning && this.activeTask === "comment") {
         if (!chrome.runtime?.id) {
@@ -2085,8 +2313,9 @@
           await randomDelay(2, 3.5);
           continue;
         }
-        const openDialog = document.querySelector('[role="dialog"]');
+        const openDialog = Array.from(document.querySelectorAll('[role="dialog"]')).find(fbIsVisible);
         if (openDialog) {
+          failedDialogCloses = 0;
           const dialogCommentInput = openDialog.querySelector(
             'div[contenteditable="true"][role="textbox"], div[contenteditable="true"][aria-label*="sebagai"], div[contenteditable="true"][aria-placeholder*="sebagai"], div[contenteditable="true"][data-lexical-editor="true"], div[contenteditable="true"]'
           );
@@ -2115,31 +2344,20 @@
                 dialogCommentInput.focus();
                 await randomDelay(0.5, 1);
                 console.log("[FacebookInteraction] Typing comment into input...");
-                fbSetLexicalText(dialogCommentInput, commentText);
+                await simulateHumanTyping(dialogCommentInput, commentText, "medium");
                 await randomDelay(1.2, 2.2);
-                const submitBtn = findFbCommentSubmitButton(openDialog);
+                const submitBtn = findFbCommentSubmitButton(openDialog, dialogCommentInput);
                 if (submitBtn) {
                   console.log("[FacebookInteraction] Found submit button:", submitBtn.getAttribute("aria-label") || submitBtn.textContent?.slice(0, 30));
                   await randomDelay(0.5, 1);
                   fbClick(submitBtn, true);
                   console.log("[FacebookInteraction] Clicked submit button.");
                 } else {
-                  dialogCommentInput.dispatchEvent(new KeyboardEvent("keydown", {
-                    key: "Enter",
-                    code: "Enter",
-                    keyCode: 13,
-                    which: 13,
-                    bubbles: true,
-                    cancelable: true
-                  }));
-                  dialogCommentInput.dispatchEvent(new KeyboardEvent("keypress", {
-                    key: "Enter",
-                    code: "Enter",
-                    keyCode: 13,
-                    which: 13,
-                    bubbles: true,
-                    cancelable: true
-                  }));
+                  dialogCommentInput.focus();
+                  const enterOpts = { key: "Enter", code: "Enter", keyCode: 13, which: 13, bubbles: true, cancelable: true };
+                  dialogCommentInput.dispatchEvent(new KeyboardEvent("keydown", enterOpts));
+                  dialogCommentInput.dispatchEvent(new KeyboardEvent("keypress", enterOpts));
+                  dialogCommentInput.dispatchEvent(new KeyboardEvent("keyup", enterOpts));
                   console.log("[FacebookInteraction] Pressed Enter to submit.");
                 }
                 await randomDelay(2.5, 4);
@@ -2156,10 +2374,20 @@
             }
           }
           console.log("[FacebookInteraction] Closing open dialog modal...");
-          await closeFbModal(openDialog);
+          const dialogClosed = await closeFbModal(openDialog);
+          if (!dialogClosed) {
+            failedDialogCloses++;
+            console.warn(`[FacebookInteraction] Dialog masih terbuka setelah percobaan ke-${failedDialogCloses}.`);
+            if (failedDialogCloses >= 3) {
+              console.warn("[FacebookInteraction] Dialog tidak dapat ditutup. Menghentikan Auto-Comment untuk mencegah loop tak berujung.");
+              this.isRunning = false;
+              break;
+            }
+          }
           await randomDelay(1.5, 2.5);
           continue;
         }
+        failedDialogCloses = 0;
         const posts = scanFbFeedPosts(40);
         let target = posts.find((p) => {
           if (!p.commentBtn) return false;
@@ -2237,27 +2465,34 @@
       const processed = /* @__PURE__ */ new WeakSet();
       console.log("[FacebookInteraction] Auto-Share started...");
       while (this.isRunning && this.activeTask === "share") {
-        const articles = Array.from(document.querySelectorAll('div[role="article"]'));
+        const articles = scanFbFeedPosts(40).map((p) => p.element);
         const target = articles.find((art) => {
           if (processed.has(art)) return false;
-          const shareBtn = art.querySelector('[aria-label*="Bagikan"][role="button"], [aria-label*="Share"][role="button"]');
-          return !!shareBtn;
+          return !!findFbShareButton(art);
         });
         if (target) {
           processed.add(target);
           try {
             target.scrollIntoView({ behavior: "smooth", block: "center" });
             await randomDelay(1, 2);
-            const shareBtn = target.querySelector('[aria-label*="Bagikan"][role="button"], [aria-label*="Share"][role="button"]');
+            const shareBtn = findFbShareButton(target);
             if (shareBtn) {
               fbClick(shareBtn);
               await randomDelay(1.5, 2.5);
-              const shareNowBtn = Array.from(document.querySelectorAll('[role="menuitem"], [role="button"]')).find((el) => {
-                const txt = (el.textContent || "").toLowerCase();
-                return txt.includes("bagikan sekarang") || txt.includes("share now");
-              });
+              let dialog = findFbShareDialog();
+              for (let i = 0; i < 5 && !dialog; i++) {
+                await randomDelay(0.5, 1);
+                dialog = findFbShareDialog();
+              }
+              const shareNowBtn = dialog ? Array.from(dialog.querySelectorAll('[role="button"]')).find((el) => {
+                const txt = (el.textContent || "").trim().toLowerCase();
+                return txt === "bagikan sekarang" || txt === "share now";
+              }) : null;
               if (shareNowBtn) {
-                fbClick(shareNowBtn);
+                fbClick(shareNowBtn, true);
+                await randomDelay(1, 2);
+              } else {
+                console.warn('[FacebookInteraction] Tombol "Bagikan sekarang" tidak ditemukan di dialog share.');
               }
               count++;
               if (onProgressCallback) onProgressCallback({ count, author: extractFbAuthor(target) });
@@ -2274,7 +2509,153 @@
       return { success: true, totalProcessed: count };
     },
     /**
+     * Auto-Interaksi Personal continuous loop.
+     * Visits each friend's profile (from facebook.com/friends), then randomly
+     * likes & AI-comments on some of their posts before moving to the next friend.
+     *
+     * Like Auto-View Story, the loop first navigates to /friends — that full page
+     * load destroys this content-script context, so we persist a pending flag
+     * (fbAutoPersonalPending) that content_main.js reads after re-init to resume.
+     */
+    async startContinuousAutoPersonalInteraction(onProgressCallback, generateCommentFn) {
+      if (this.isRunning) await this.stop();
+      this.isRunning = true;
+      this.activeTask = "personal";
+      console.log("[FacebookInteraction] Auto-Interaksi Personal dimulai...");
+      if (!window.location.href.includes("facebook.com/friends")) {
+        console.log("[FacebookInteraction] Menuju https://www.facebook.com/friends/ ...");
+        try {
+          await chrome.storage.local.set({ fbAutoPersonalPending: true });
+        } catch (e) {
+        }
+        window.location.href = "https://www.facebook.com/friends/";
+        return { success: true, totalVisited: 0, navigated: true };
+      }
+      const visitedFriends = /* @__PURE__ */ new Set();
+      const processedPosts = /* @__PURE__ */ new WeakSet();
+      let friendsVisited = 0;
+      let likeCount = 0;
+      let commentCount = 0;
+      let currentFriendName = "";
+      let profileActions = 0;
+      let profileActionBudget = 0;
+      let profileScrollFails = 0;
+      while (this.isRunning && this.activeTask === "personal") {
+        if (!chrome.runtime?.id) {
+          console.warn("[FacebookInteraction] Extension context invalidated. Stopping.");
+          this.isRunning = false;
+          break;
+        }
+        const url = window.location.href;
+        const dialogRes = await processOpenFbCommentDialog(generateCommentFn);
+        if (dialogRes.done) {
+          commentCount++;
+          profileActions++;
+          if (onProgressCallback) onProgressCallback({
+            count: friendsVisited,
+            likes: likeCount,
+            comments: commentCount,
+            author: currentFriendName,
+            replyText: dialogRes.commentText
+          });
+          await randomDelay(2, 3.5);
+          continue;
+        }
+        if (url.includes("facebook.com/friends")) {
+          const friends = findFbFriendLinks();
+          console.log("[FacebookInteraction] Friends terdeteksi:", friends.length);
+          const next = friends.find((f) => !visitedFriends.has(fbNormalizeProfileUrl(f.url)));
+          if (next) {
+            const key = fbNormalizeProfileUrl(next.url);
+            visitedFriends.add(key);
+            currentFriendName = next.name;
+            profileActions = 0;
+            profileActionBudget = 2 + Math.floor(Math.random() * 4);
+            profileScrollFails = 0;
+            console.log(`[FacebookInteraction] Mengunjungi profil teman: ${next.name} (budget ${profileActionBudget} aksi)`);
+            next.el.scrollIntoView({ behavior: "smooth", block: "center" });
+            await randomDelay(0.8, 1.5);
+            fbClick(next.el, true);
+            await randomDelay(4, 6);
+            continue;
+          }
+          console.log("[FacebookInteraction] Semua teman yang terlihat sudah dikunjungi, scroll untuk memuat lebih...");
+          window.scrollBy({ top: 900, behavior: "smooth" });
+          await randomDelay(2, 3.5);
+          continue;
+        }
+        if (!currentFriendName) {
+          console.log("[FacebookInteraction] Berada di halaman yang bukan daftar teman, kembali ke /friends...");
+          try {
+            await chrome.storage.local.set({ fbAutoPersonalPending: true });
+          } catch (e) {
+          }
+          window.location.href = "https://www.facebook.com/friends/";
+          return { success: true, totalVisited: friendsVisited, navigated: true };
+        }
+        if (profileActionBudget > 0 && profileActions >= profileActionBudget) {
+          friendsVisited++;
+          console.log(`[FacebookInteraction] Selesai dengan ${currentFriendName}, kembali ke daftar teman...`);
+          if (onProgressCallback) onProgressCallback({
+            count: friendsVisited,
+            likes: likeCount,
+            comments: commentCount,
+            author: currentFriendName,
+            doneFriend: true
+          });
+          window.history.back();
+          await randomDelay(4, 6);
+          continue;
+        }
+        const posts = scanFbFeedPosts(20);
+        const unprocessed = posts.filter((p) => !processedPosts.has(p.element));
+        if (unprocessed.length > 0) {
+          profileScrollFails = 0;
+          const post = unprocessed[Math.floor(Math.random() * unprocessed.length)];
+          processedPosts.add(post.element);
+          const roll = Math.random();
+          if (roll < 0.55 && post.likeBtn) {
+            post.element.scrollIntoView({ behavior: "smooth", block: "center" });
+            await randomDelay(0.8, 1.5);
+            const freshBtn = findFbLikeButton(post.element);
+            if (freshBtn && !fbIsAlreadyLiked(post.element)) {
+              await fbPerformReaction(freshBtn, "Suka");
+              likeCount++;
+              profileActions++;
+              if (onProgressCallback) onProgressCallback({
+                count: friendsVisited,
+                likes: likeCount,
+                comments: commentCount,
+                author: currentFriendName
+              });
+            }
+          } else if (roll < 0.82 && post.commentBtn) {
+            post.element.scrollIntoView({ behavior: "smooth", block: "center" });
+            await randomDelay(0.8, 1.5);
+            console.log("[FacebookInteraction] Membuka komentar untuk menyapa teman (AI)...");
+            fbClick(post.commentBtn);
+          } else {
+            console.log("[FacebookInteraction] Postingan dilewati secara acak.");
+          }
+          await randomDelay(2.5, 4.5);
+        } else {
+          profileScrollFails++;
+          window.scrollBy({ top: 700, behavior: "smooth" });
+          await randomDelay(2.5, 4);
+          if (profileScrollFails >= 3) {
+            console.log("[FacebookInteraction] Tidak ada postingan baru di profil ini, pindah ke teman berikutnya...");
+            friendsVisited++;
+            window.history.back();
+            await randomDelay(4, 6);
+          }
+        }
+      }
+      return { success: true, totalVisited: friendsVisited, likes: likeCount, comments: commentCount };
+    },
+    /**
      * Auto-View Story continuous loop.
+     * Navigates directly to https://www.facebook.com/stories/ first (the story
+     * viewer only exists there), then walks through each friend's story card.
      */
     async startContinuousAutoStory(onProgressCallback) {
       if (this.isRunning) await this.stop();
@@ -2282,20 +2663,57 @@
       this.activeTask = "story";
       let count = 0;
       console.log("[FacebookInteraction] Auto-View Story started...");
-      const storyCard = document.querySelector('div[aria-label*="Cerita"][role="button"], div[role="button"][aria-label*="Story"]');
-      if (storyCard) {
-        fbClick(storyCard);
-        await randomDelay(2, 3);
+      if (!window.location.href.includes("facebook.com/stories")) {
+        console.log("[FacebookInteraction] Navigating to https://www.facebook.com/stories/ ...");
+        try {
+          await chrome.storage.local.set({ fbAutoStoryPending: true });
+        } catch (e) {
+        }
+        window.location.href = "https://www.facebook.com/stories/";
+        return { success: true, totalProcessed: 0, navigated: true };
+      }
+      const isStoryCard = (el) => {
+        const text = (el.textContent || "").trim();
+        return /^(Cerita|Story)\s/.test(text);
+      };
+      const visibleCards = () => Array.from(document.querySelectorAll('div[role="button"], a[role="link"]')).filter((el) => fbIsVisible(el) && isStoryCard(el) && !!el.getAttribute("id"));
+      let initialCards = visibleCards();
+      for (let i = 0; initialCards.length === 0 && i < 10; i++) {
+        await randomDelay(1, 1.5);
+        initialCards = visibleCards();
+      }
+      console.log(`[FacebookInteraction] ${initialCards.length} story found.`);
+      const processedIds = /* @__PURE__ */ new Set();
+      if (initialCards.length > 0) {
+        if (initialCards[0].getAttribute("id")) processedIds.add(initialCards[0].getAttribute("id"));
+        fbClick(initialCards[0]);
+        await randomDelay(3, 5);
+      } else {
+        const storyCard = document.querySelector('div[aria-label*="Cerita"][role="button"], div[role="button"][aria-label*="Story"]');
+        if (storyCard) {
+          fbClick(storyCard);
+          await randomDelay(3, 5);
+        }
       }
       while (this.isRunning && this.activeTask === "story") {
         try {
           count++;
           if (onProgressCallback) onProgressCallback({ count });
-          await randomDelay(4, 7);
-          const nextBtn = document.querySelector('[aria-label="Cerita Berikutnya"][role="button"]') || document.querySelector('[aria-label="Next story"][role="button"]') || document.querySelector('[aria-label="Selanjutnya"][role="button"]');
-          if (nextBtn) {
+          await randomDelay(5, 8);
+          const nextBtn = document.querySelector(
+            '[aria-label="Cerita Berikutnya"][role="button"], [aria-label="Next story"][role="button"], [aria-label="Selanjutnya"][role="button"]'
+          );
+          if (nextBtn && fbIsVisible(nextBtn)) {
             fbClick(nextBtn);
+            continue;
+          }
+          const cards = visibleCards().filter((c) => !processedIds.has(c.getAttribute("id")));
+          const next = cards[0];
+          if (next) {
+            processedIds.add(next.getAttribute("id"));
+            fbClick(next);
           } else {
+            console.log("[FacebookInteraction] Semua cerita sudah dilihat, menghentikan.");
             break;
           }
         } catch (e) {
@@ -2350,15 +2768,74 @@
   };
 
   // src/content/adapters/x_interaction.js
-  function xClick(el) {
+  function xClick(el, skipScroll = false) {
     if (!el) return;
+    if (!skipScroll) {
+      try {
+        el.scrollIntoView({ block: "center", behavior: "smooth" });
+      } catch (e) {
+      }
+    }
+    const rect = el.getBoundingClientRect();
+    const clientX = rect.left + rect.width / 2;
+    const clientY = rect.top + rect.height / 2;
+    ["pointerover", "mouseover", "pointerdown", "mousedown", "pointerup", "mouseup", "click"].forEach((type) => {
+      el.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, view: window, clientX, clientY, button: 0 }));
+    });
     try {
-      el.scrollIntoView({ block: "center", behavior: "smooth" });
+      el.click();
     } catch (e) {
     }
-    ["pointerdown", "mousedown", "pointerup", "mouseup", "click"].forEach((type) => {
-      el.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, view: window }));
+  }
+  function findXReplyDialog() {
+    return Array.from(document.querySelectorAll('div[role="dialog"]')).find((d) => {
+      const rect = d.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) return false;
+      return !!d.querySelector(
+        'div[data-testid="tweetTextarea_0"], div[data-testid="tweetTextarea_0RichTextInputContainer"], div[role="textbox"][aria-label*="Post text"]'
+      );
+    }) || null;
+  }
+  function findXReplyInput(dialog) {
+    const scope = dialog || document;
+    return scope.querySelector('div[data-testid="tweetTextarea_0"]') || scope.querySelector('div[role="textbox"][aria-label*="Post text"]') || scope.querySelector('div[contenteditable="true"]') || null;
+  }
+  function findXReplySubmit(dialog) {
+    if (dialog) {
+      return dialog.querySelector('button[data-testid="tweetButton"]') || null;
+    }
+    return document.querySelector('button[data-testid="tweetButton"]') || document.querySelector('button[data-testid="tweetButtonInline"]') || null;
+  }
+  async function closeXReplyDialog() {
+    const dlg = findXReplyDialog();
+    if (!dlg) return;
+    const closeBtn = dlg.querySelector('[data-testid="app-bar-close"], [aria-label="Close"]');
+    if (closeBtn) {
+      xClick(closeBtn, true);
+      await randomDelay(0.8, 1.5);
+    }
+    if (findXReplyDialog()) {
+      const esc = { key: "Escape", code: "Escape", keyCode: 27, which: 27, bubbles: true, cancelable: true };
+      document.dispatchEvent(new KeyboardEvent("keydown", esc));
+      window.dispatchEvent(new KeyboardEvent("keydown", esc));
+      await randomDelay(0.8, 1.5);
+    }
+    const confirmDlg = Array.from(document.querySelectorAll('div[role="dialog"]')).find((d) => {
+      const rect = d.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) return false;
+      const txt = (d.textContent || "").toLowerCase();
+      return txt.includes("discard") || txt.includes("buang draf");
     });
+    if (confirmDlg) {
+      const discardBtn = Array.from(confirmDlg.querySelectorAll("button")).find((b) => {
+        const t = (b.textContent || "").trim().toLowerCase();
+        return t === "discard" || t === "buang";
+      });
+      if (discardBtn) {
+        xClick(discardBtn, true);
+        await randomDelay(0.8, 1.5);
+      }
+    }
   }
   function scanXTweets(maxTweets = 30) {
     const articles = Array.from(document.querySelectorAll('article[data-testid="tweet"]')).filter((el) => {
@@ -2432,6 +2909,11 @@
       let count = 0;
       const processed = /* @__PURE__ */ new WeakSet();
       while (this.isRunning && this.activeTask === "reply") {
+        if (findXReplyDialog()) {
+          await closeXReplyDialog();
+          await randomDelay(1.5, 2.5);
+          continue;
+        }
         const tweets = scanXTweets(40);
         const target = tweets.find((t) => t.replyBtn && t.text && t.text.length > 10 && !processed.has(t.element));
         if (target) {
@@ -2449,32 +2931,63 @@
             await randomDelay(1.5, 3);
             const input = await new Promise((resolve) => {
               const check = setInterval(() => {
-                const el = document.querySelector('div[data-testid="tweetTextarea_0"]') || document.querySelector('div[role="textbox"][aria-label*="Post"]');
-                if (el) {
+                const dlg = findXReplyDialog();
+                if (dlg && findXReplyInput(dlg)) {
                   clearInterval(check);
-                  resolve(el);
+                  resolve(findXReplyInput(dlg));
                 }
               }, 300);
               setTimeout(() => {
                 clearInterval(check);
                 resolve(null);
-              }, 5e3);
+              }, 6e3);
             });
             if (input) {
               input.focus();
               await randomDelay(0.5, 1);
-              await simulateHumanTyping(input, replyText, "fast");
-              await randomDelay(0.8, 1.5);
-              const sendBtn = document.querySelector('button[data-testid="tweetButton"]') || document.querySelector('button[data-testid="tweetButtonInline"]');
-              if (sendBtn && !sendBtn.disabled) {
-                xClick(sendBtn);
+              let sendBtn = null;
+              for (let attempt = 0; attempt < 4 && this.isRunning; attempt++) {
+                await simulateHumanTyping(input, replyText, "fast");
+                await randomDelay(1, 1.8);
+                const dlg = findXReplyDialog();
+                sendBtn = dlg ? findXReplySubmit(dlg) : null;
+                const ariaDisabled = sendBtn && sendBtn.getAttribute("aria-disabled") === "true";
+                const typedLen = (input.textContent || "").trim().length;
+                try {
+                  const dataBlocks = input.querySelectorAll('[data-block="true"]').length;
+                  const dataTexts = input.querySelectorAll('[data-text="true"]').length;
+                  const contents = input.querySelector('[data-contents="true"]');
+                  const htmlHead = (contents ? contents.innerHTML : input.innerHTML).slice(0, 200);
+                  console.log(
+                    `[XAutoReply][try${attempt}] btnDisabled=${ariaDisabled} textLen=${typedLen} blocks=${dataBlocks} dataTexts=${dataTexts} placeholder=${ariaDisabled ? "YES" : "no"} html=${htmlHead}`
+                  );
+                } catch (e) {
+                }
+                if (sendBtn && !sendBtn.disabled && !ariaDisabled && typedLen > 0 && typedLen <= 280) break;
+              }
+              if (sendBtn && !sendBtn.disabled && sendBtn.getAttribute("aria-disabled") !== "true") {
+                xClick(sendBtn, true);
                 count++;
                 if (onProgressCallback) onProgressCallback({ count, author: target.author, replyText });
+                let dialogClosed = false;
+                for (let i = 0; i < 8; i++) {
+                  await randomDelay(0.3, 0.6);
+                  if (!findXReplyDialog()) {
+                    dialogClosed = true;
+                    break;
+                  }
+                }
+                if (!dialogClosed) await closeXReplyDialog();
+              } else {
+                await closeXReplyDialog();
               }
+            } else {
+              await closeXReplyDialog();
             }
             await randomDelay(4, 8);
           } catch (e) {
             console.warn("[XInteraction] Auto-reply error:", e);
+            await closeXReplyDialog();
             await randomDelay(3, 5);
           }
         } else {
@@ -2803,8 +3316,9 @@
   }
   function collectOpenDialogs(limit = 3) {
     return Array.from(document.querySelectorAll('[role="dialog"], [role="menu"]')).filter((d) => {
+      if (!d.isConnected) return false;
       const r = d.getBoundingClientRect();
-      return r.width > 0 && r.height > 0 && d.offsetParent !== null;
+      return r.width > 0 && r.height > 0;
     }).slice(0, limit).map((d) => ({
       ariaLabel: d.getAttribute("aria-label") || "",
       text: (d.textContent || "").slice(0, 300),
@@ -2848,9 +3362,15 @@
     return els.slice(0, 40).map((el) => describeEl(el, 60));
   }
   function dumpDomStructure(platform = "unknown") {
-    const isFacebook = platform === "facebook" || window.location.hostname.includes("facebook.com") || window.location.hostname.includes("fbcdn.net");
+    const host = window.location.hostname;
+    let detected = "";
+    if (host.includes("facebook.com") || host.includes("fbcdn.net")) detected = "facebook";
+    else if (host.includes("x.com") || host.includes("twitter.com")) detected = "x";
+    else if (host.includes("threads.net") || host.includes("threads.com")) detected = "threads";
+    const effectivePlatform = detected || platform || "unknown";
+    const isFacebook = effectivePlatform === "facebook" || host.includes("facebook.com") || host.includes("fbcdn.net");
     const report = {
-      platform,
+      platform: effectivePlatform,
       url: window.location.href,
       timestamp: (/* @__PURE__ */ new Date()).toISOString(),
       composerInputs: collect(
@@ -2937,6 +3457,22 @@
       });
       if (this.platformKey === "threads") {
         chrome.storage.local.remove("autoReplyRunning");
+      }
+      if (this.platformKey === "facebook" && window.location.href.includes("facebook.com/stories")) {
+        chrome.storage.local.get("fbAutoStoryPending", (res) => {
+          if (res.fbAutoStoryPending) {
+            chrome.storage.local.remove("fbAutoStoryPending");
+            this._startFbAutoStory();
+          }
+        });
+      }
+      if (this.platformKey === "facebook" && window.location.href.includes("facebook.com/friends")) {
+        chrome.storage.local.get("fbAutoPersonalPending", (res) => {
+          if (res.fbAutoPersonalPending) {
+            chrome.storage.local.remove("fbAutoPersonalPending");
+            this._startFbAutoPersonal();
+          }
+        });
       }
     }
     async handleBackgroundMessage(message, sendResponse) {
@@ -3025,6 +3561,10 @@
               }).catch(console.error);
               sendResponse({ success: true, message: "FB Auto-View Story dimulai." });
               break;
+            case "start_fb_auto_personal":
+              this._startFbAutoPersonal();
+              sendResponse({ success: true, message: "FB Auto-Interaksi Personal dimulai." });
+              break;
             // ── X / Twitter ──
             case "start_x_auto_like":
               this.interaction.startContinuousAutoLike((progress) => {
@@ -3061,13 +3601,14 @@
             case "stop_fb_auto_share":
             case "stop_fb_auto_follow":
             case "stop_fb_auto_story":
+            case "stop_fb_auto_personal":
             case "stop_x_auto_like":
             case "stop_x_auto_reply":
             case "stop_x_auto_retweet":
             case "stop_x_auto_follow":
             case "stop_all":
               this.interaction.stop();
-              chrome.storage.local.remove("autoReplyRunning");
+              chrome.storage.local.remove(["autoReplyRunning", "fbAutoStoryPending", "fbAutoPersonalPending"]);
               sendResponse({ success: true, message: "Interaksi dihentikan." });
               break;
             case "reply_post": {
@@ -3144,6 +3685,38 @@ Gunakan bahasa Indonesia yang alami, 1 kalimat saja, tanpa hashtag. Berikan teks
         chrome.runtime.sendMessage({ action: "INTERACTION_PROGRESS", payload: { type: "fb_comment", progress } }).catch(() => {
         });
       }, generateFBCommentHelper).catch(console.error);
+    }
+    _startFbAutoStory() {
+      this.interaction.startContinuousAutoStory((progress) => {
+        chrome.runtime.sendMessage({ action: "INTERACTION_PROGRESS", payload: { type: "fb_story", progress } }).catch(() => {
+        });
+      }).catch(console.error);
+    }
+    _startFbAutoPersonal() {
+      const generateFbPersonalComment = async (postText) => {
+        return new Promise((resolve) => {
+          const prompt = `ISI POSTINGAN TEMAN DI FACEBOOK:
+"${postText.slice(0, 500)}"
+
+TUGAS:
+Tulis 1 komentar untuk teman Anda di Facebook yang santai, hangat, spesifik dan relevan mengomentari isi postingan di atas.
+Gunakan bahasa Indonesia yang alami seperti obrolan antar teman, 1 kalimat saja, tanpa hashtag. Berikan teks komentar saja.`;
+          chrome.runtime.sendMessage({
+            action: "GENERATE_CONTENT",
+            payload: { prompt, platform: "facebook", tone: "casual" }
+          }, (res) => {
+            if (chrome.runtime.lastError || !res || !res.success) {
+              resolve("");
+            } else {
+              resolve(res.data || "");
+            }
+          });
+        });
+      };
+      this.interaction.startContinuousAutoPersonalInteraction((progress) => {
+        chrome.runtime.sendMessage({ action: "INTERACTION_PROGRESS", payload: { type: "fb_personal", progress } }).catch(() => {
+        });
+      }, generateFbPersonalComment).catch(console.error);
     }
     _startXAutoReply() {
       const generateXReplyHelper = async (postText) => {
