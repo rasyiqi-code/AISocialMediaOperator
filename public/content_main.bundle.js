@@ -232,18 +232,28 @@
           document.execCommand("insertParagraph", false, null);
         }
       });
-      await new Promise((r) => setTimeout(r, 150));
+      await new Promise((r) => setTimeout(r, 100));
+    } catch (e) {
+    }
+    try {
+      document.execCommand("insertText", false, " ");
+      document.execCommand("delete", false, null);
+      element.dispatchEvent(new Event("input", { bubbles: true, cancelable: true }));
+      element.dispatchEvent(new InputEvent("input", { bubbles: true, cancelable: true, inputType: "insertText" }));
     } catch (e) {
     }
     if (hasDraftBlocks(element)) return true;
     try {
       dispatchDraftBeforeInput(element, "insertText", text);
-      await new Promise((r) => setTimeout(r, 150));
+      await new Promise((r) => setTimeout(r, 100));
+      document.execCommand("insertText", false, " ");
+      document.execCommand("delete", false, null);
+      element.dispatchEvent(new Event("input", { bubbles: true, cancelable: true }));
     } catch (e) {
     }
     if (hasDraftBlocks(element)) return true;
     insertDraftJsPaste(element, text);
-    await new Promise((r) => setTimeout(r, 150));
+    await new Promise((r) => setTimeout(r, 100));
     return (element.textContent || "").trim().length > 0;
   }
   var simulateHumanTyping = async (element, text, speedMode = "medium") => {
@@ -2794,9 +2804,15 @@
   }
   function findXReplySubmit(dialog) {
     if (dialog) {
-      return dialog.querySelector('button[data-testid="tweetButton"]') || null;
+      return dialog.querySelector('button[data-testid="tweetButton"]') || dialog.querySelector('button[data-testid="tweetButtonInline"]') || null;
     }
-    return document.querySelector('button[data-testid="tweetButton"]') || document.querySelector('button[data-testid="tweetButtonInline"]') || null;
+    const activeInput = document.querySelector('div[data-testid="tweetTextarea_0"]') || document.querySelector('div[role="textbox"][aria-label*="Post text"]');
+    if (activeInput) {
+      const container = activeInput.closest('[data-testid*="RichTextInputContainer"]') || activeInput.closest(".DraftEditor-root")?.parentElement?.parentElement || activeInput.closest("article") || document;
+      const btn = container.querySelector('button[data-testid="tweetButtonInline"]') || container.querySelector('button[data-testid="tweetButton"]');
+      if (btn) return btn;
+    }
+    return document.querySelector('button[data-testid="tweetButtonInline"]') || document.querySelector('button[data-testid="tweetButton"]') || null;
   }
   function scanXTweets(maxTweets = 30) {
     const articles = Array.from(document.querySelectorAll('article[data-testid="tweet"]')).filter((el) => {

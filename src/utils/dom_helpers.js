@@ -347,7 +347,15 @@ async function insertDraftJsText(element, text) {
         document.execCommand('insertParagraph', false, null);
       }
     });
-    await new Promise(r => setTimeout(r, 150));
+    await new Promise(r => setTimeout(r, 100));
+  } catch (e) {}
+
+  // Force Draft.js onChange update via native Space + Backspace
+  try {
+    document.execCommand('insertText', false, ' ');
+    document.execCommand('delete', false, null);
+    element.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
+    element.dispatchEvent(new InputEvent('input', { bubbles: true, cancelable: true, inputType: 'insertText' }));
   } catch (e) {}
 
   if (hasDraftBlocks(element)) return true;
@@ -355,14 +363,17 @@ async function insertDraftJsText(element, text) {
   // Fallback 1: dispatchDraftBeforeInput with mock dataTransfer
   try {
     dispatchDraftBeforeInput(element, 'insertText', text);
-    await new Promise(r => setTimeout(r, 150));
+    await new Promise(r => setTimeout(r, 100));
+    document.execCommand('insertText', false, ' ');
+    document.execCommand('delete', false, null);
+    element.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
   } catch (e) {}
 
   if (hasDraftBlocks(element)) return true;
 
   // Fallback 2: paste simulation
   insertDraftJsPaste(element, text);
-  await new Promise(r => setTimeout(r, 150));
+  await new Promise(r => setTimeout(r, 100));
 
   return (element.textContent || '').trim().length > 0;
 }

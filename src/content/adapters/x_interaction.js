@@ -64,10 +64,24 @@ function findXReplyInput(dialog) {
  */
 function findXReplySubmit(dialog) {
   if (dialog) {
-    return dialog.querySelector('button[data-testid="tweetButton"]') || null;
+    return dialog.querySelector('button[data-testid="tweetButton"]') ||
+           dialog.querySelector('button[data-testid="tweetButtonInline"]') ||
+           null;
   }
-  return document.querySelector('button[data-testid="tweetButton"]') ||
-         document.querySelector('button[data-testid="tweetButtonInline"]') ||
+  // Search within active composer container first
+  const activeInput = document.querySelector('div[data-testid="tweetTextarea_0"]') ||
+                      document.querySelector('div[role="textbox"][aria-label*="Post text"]');
+  if (activeInput) {
+    const container = activeInput.closest('[data-testid*="RichTextInputContainer"]') ||
+                      activeInput.closest('.DraftEditor-root')?.parentElement?.parentElement ||
+                      activeInput.closest('article') ||
+                      document;
+    const btn = container.querySelector('button[data-testid="tweetButtonInline"]') ||
+                container.querySelector('button[data-testid="tweetButton"]');
+    if (btn) return btn;
+  }
+  return document.querySelector('button[data-testid="tweetButtonInline"]') ||
+         document.querySelector('button[data-testid="tweetButton"]') ||
          null;
 }
 
