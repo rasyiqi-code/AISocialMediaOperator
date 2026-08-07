@@ -139,14 +139,7 @@ const pasteAndVerify = async (element, text) => {
  */
 const insertViaBeforeInput = (element, text) => {
   element.focus();
-  try {
-    const sel = window.getSelection();
-    const range = document.createRange();
-    range.selectNodeContents(element);
-    range.collapse(true);
-    sel.removeAllRanges();
-    sel.addRange(range);
-  } catch (e) {}
+  placeCaretAtEnd(element);
 
   const lines = text.split('\n');
   lines.forEach((line, i) => {
@@ -169,14 +162,7 @@ const insertViaBeforeInput = (element, text) => {
  */
 const insertWithParagraphs = (element, text) => {
   element.focus();
-  try {
-    const sel = window.getSelection();
-    const range = document.createRange();
-    range.selectNodeContents(element);
-    range.collapse(true);
-    sel.removeAllRanges();
-    sel.addRange(range);
-  } catch (e) {}
+  placeCaretAtEnd(element);
 
   const lines = text.split('\n');
   lines.forEach((line, i) => {
