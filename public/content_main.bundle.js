@@ -2792,56 +2792,6 @@
     } catch (e) {
     }
   }
-  function findXReplyDialog() {
-    return Array.from(document.querySelectorAll('div[role="dialog"]')).find((d) => {
-      const rect = d.getBoundingClientRect();
-      if (rect.width <= 0 || rect.height <= 0) return false;
-      return !!d.querySelector(
-        'div[data-testid="tweetTextarea_0"], div[data-testid="tweetTextarea_0RichTextInputContainer"], div[role="textbox"][aria-label*="Post text"]'
-      );
-    }) || null;
-  }
-  function findXReplyInput(dialog) {
-    const scope = dialog || document;
-    return scope.querySelector('div[data-testid="tweetTextarea_0"]') || scope.querySelector('div[role="textbox"][aria-label*="Post text"]') || scope.querySelector('div[contenteditable="true"]') || null;
-  }
-  function findXReplySubmit(dialog) {
-    if (dialog) {
-      return dialog.querySelector('button[data-testid="tweetButton"]') || null;
-    }
-    return document.querySelector('button[data-testid="tweetButton"]') || document.querySelector('button[data-testid="tweetButtonInline"]') || null;
-  }
-  async function closeXReplyDialog() {
-    const dlg = findXReplyDialog();
-    if (!dlg) return;
-    const closeBtn = dlg.querySelector('[data-testid="app-bar-close"], [aria-label="Close"]');
-    if (closeBtn) {
-      xClick(closeBtn, true);
-      await randomDelay(0.8, 1.5);
-    }
-    if (findXReplyDialog()) {
-      const esc = { key: "Escape", code: "Escape", keyCode: 27, which: 27, bubbles: true, cancelable: true };
-      document.dispatchEvent(new KeyboardEvent("keydown", esc));
-      window.dispatchEvent(new KeyboardEvent("keydown", esc));
-      await randomDelay(0.8, 1.5);
-    }
-    const confirmDlg = Array.from(document.querySelectorAll('div[role="dialog"]')).find((d) => {
-      const rect = d.getBoundingClientRect();
-      if (rect.width <= 0 || rect.height <= 0) return false;
-      const txt = (d.textContent || "").toLowerCase();
-      return txt.includes("discard") || txt.includes("buang draf");
-    });
-    if (confirmDlg) {
-      const discardBtn = Array.from(confirmDlg.querySelectorAll("button")).find((b) => {
-        const t = (b.textContent || "").trim().toLowerCase();
-        return t === "discard" || t === "buang";
-      });
-      if (discardBtn) {
-        xClick(discardBtn, true);
-        await randomDelay(0.8, 1.5);
-      }
-    }
-  }
   function scanXTweets(maxTweets = 30) {
     const articles = Array.from(document.querySelectorAll('article[data-testid="tweet"]')).filter((el) => {
       const rect = el.getBoundingClientRect();
@@ -2912,91 +2862,86 @@
       this.isRunning = true;
       this.activeTask = "reply";
       let count = 0;
-      const processed = /* @__PURE__ */ new WeakSet();
+      const processedArticles = /* @__PURE__ */ new WeakSet();
+      const processedUrls = /* @__PURE__ */ new Set();
+      console.log("[XInteraction] Auto-Reply (Status Page Flow) started...");
       while (this.isRunning && this.activeTask === "reply") {
-        if (findXReplyDialog()) {
-          await closeXReplyDialog();
-          await randomDelay(1.5, 2.5);
+        if (!chrome.runtime?.id) {
+          console.warn("[XInteraction] Extension context invalidated. Stopping.");
+          this.isRunning = false;
+          break;
+        }
+        const currentUrl = window.location.href;
+        if (currentUrl.includes("/status/")) {
+          console.log("[XInteraction] Detected status page:", currentUrl);
+          const input = document.querySelector('div[data-testid="tweetTextarea_0"]') || document.querySelector('div[role="textbox"][aria-label*="Post text"]') || document.querySelector('div[contenteditable="true"]');
+          const mainTweet = document.querySelector('article[data-testid="tweet"]');
+          const tweetTextEl = mainTweet ? mainTweet.querySelector('[data-testid="tweetText"]') : null;
+          const postText = tweetTextEl ? (tweetTextEl.textContent || "").trim() : "";
+          const authorEl = mainTweet ? mainTweet.querySelector('[data-testid="User-Name"]') : null;
+          const author = authorEl ? (authorEl.textContent || "").split("@")[0].trim() : "User";
+          if (input && postText && !processedUrls.has(currentUrl)) {
+            processedUrls.add(currentUrl);
+            console.log("[XInteraction] Target tweet found on status page:", author, postText.slice(0, 60));
+            let replyText = "";
+            if (generateReplyFn) replyText = await generateReplyFn(postText);
+            if (replyText) {
+              try {
+                input.focus();
+                await randomDelay(0.5, 1);
+                console.log("[XInteraction] Typing reply into status page composer...");
+                await simulateHumanTyping(input, replyText, "medium");
+                await randomDelay(1.5, 2.5);
+                let sendBtn = document.querySelector('button[data-testid="tweetButtonInline"]') || document.querySelector('button[data-testid="tweetButton"]');
+                if (sendBtn && sendBtn.getAttribute("aria-disabled") !== "true") {
+                  xClick(sendBtn, true);
+                  console.log("[XInteraction] Clicked Reply button!");
+                  count++;
+                  if (onProgressCallback) onProgressCallback({ count, author, replyText });
+                  await randomDelay(3, 5);
+                } else {
+                  console.warn("[XInteraction] Reply button still disabled/missing.");
+                }
+              } catch (e) {
+                console.warn("[XInteraction] Error replying on status page:", e);
+              }
+            }
+          }
+          console.log("[XInteraction] Navigating back to home timeline...");
+          window.history.back();
+          await randomDelay(3, 5);
           continue;
         }
         const tweets = scanXTweets(40);
-        const target = tweets.find((t) => t.replyBtn && t.text && t.text.length > 10 && !processed.has(t.element));
+        let target = tweets.find((t) => {
+          if (!t.text || t.text.length < 10) return false;
+          if (processedArticles.has(t.element)) return false;
+          const link = t.element.querySelector('a[href*="/status/"]');
+          if (!link) return false;
+          const href = link.getAttribute("href") || "";
+          return !processedUrls.has(href);
+        });
+        console.log("[XInteraction] Timeline scan:", tweets.length, "tweets found,", target ? `target: ${target.author}` : "no target");
         if (target) {
-          processed.add(target.element);
+          processedArticles.add(target.element);
+          const link = target.element.querySelector('a[href*="/status/"]');
+          const href = link ? link.getAttribute("href") : "";
+          if (href) processedUrls.add(href);
           try {
+            console.log("[XInteraction] Scrolling to target tweet:", target.author);
             target.element.scrollIntoView({ behavior: "smooth", block: "center" });
             await randomDelay(1, 2);
-            let replyText = "";
-            if (generateReplyFn) replyText = await generateReplyFn(target.text);
-            if (!replyText) {
-              await randomDelay(2, 4);
-              continue;
-            }
-            xClick(target.replyBtn);
-            await randomDelay(1.5, 3);
-            const input = await new Promise((resolve) => {
-              const check = setInterval(() => {
-                const dlg = findXReplyDialog();
-                if (dlg && findXReplyInput(dlg)) {
-                  clearInterval(check);
-                  resolve(findXReplyInput(dlg));
-                }
-              }, 300);
-              setTimeout(() => {
-                clearInterval(check);
-                resolve(null);
-              }, 6e3);
-            });
-            if (input) {
-              input.focus();
-              await randomDelay(0.5, 1);
-              let sendBtn = null;
-              for (let attempt = 0; attempt < 4 && this.isRunning; attempt++) {
-                await simulateHumanTyping(input, replyText, "fast");
-                await randomDelay(1, 1.8);
-                const dlg = findXReplyDialog();
-                sendBtn = dlg ? findXReplySubmit(dlg) : null;
-                const ariaDisabled = sendBtn && sendBtn.getAttribute("aria-disabled") === "true";
-                const typedLen = (input.textContent || "").trim().length;
-                try {
-                  const dataBlocks = input.querySelectorAll('[data-block="true"]').length;
-                  const dataTexts = input.querySelectorAll('[data-text="true"]').length;
-                  const contents = input.querySelector('[data-contents="true"]');
-                  const htmlHead = (contents ? contents.innerHTML : input.innerHTML).slice(0, 200);
-                  console.log(
-                    `[XAutoReply][try${attempt}] btnDisabled=${ariaDisabled} textLen=${typedLen} blocks=${dataBlocks} dataTexts=${dataTexts} placeholder=${ariaDisabled ? "YES" : "no"} html=${htmlHead}`
-                  );
-                } catch (e) {
-                }
-                if (sendBtn && !sendBtn.disabled && !ariaDisabled && typedLen > 0 && typedLen <= 280) break;
-              }
-              if (sendBtn && !sendBtn.disabled && sendBtn.getAttribute("aria-disabled") !== "true") {
-                xClick(sendBtn, true);
-                count++;
-                if (onProgressCallback) onProgressCallback({ count, author: target.author, replyText });
-                let dialogClosed = false;
-                for (let i = 0; i < 8; i++) {
-                  await randomDelay(0.3, 0.6);
-                  if (!findXReplyDialog()) {
-                    dialogClosed = true;
-                    break;
-                  }
-                }
-                if (!dialogClosed) await closeXReplyDialog();
-              } else {
-                await closeXReplyDialog();
-              }
-            } else {
-              await closeXReplyDialog();
-            }
-            await randomDelay(4, 8);
-          } catch (e) {
-            console.warn("[XInteraction] Auto-reply error:", e);
-            await closeXReplyDialog();
+            console.log("[XInteraction] Clicking tweet body to open status page...");
+            const clickTarget = target.element.querySelector("time")?.parentElement || link || target.element;
+            xClick(clickTarget);
             await randomDelay(3, 5);
+            continue;
+          } catch (e) {
+            console.warn("[XInteraction] Error clicking tweet to enter status page:", e);
           }
         } else {
-          window.scrollBy({ top: 700, behavior: "smooth" });
+          console.log("[XInteraction] No target on current view, scrolling timeline down...");
+          window.scrollBy({ top: 600, behavior: "smooth" });
           await randomDelay(2.5, 4);
         }
       }
