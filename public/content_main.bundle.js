@@ -3345,9 +3345,10 @@
               resolve(res.data);
             });
           });
+          const cleanedText = (response || "").replace(/^TOPIC LABEL:\s*.+$/im, "").replace(/^===VARIANT\s*\d+===/im, "").replace(/^===(IMAGE|POLL)===.+$/im, "").replace(/<[^>]*>/g, "").trim();
           overlay.remove();
           if (this.activeInput) {
-            await simulateHumanTyping(this.activeInput, response, "medium");
+            await simulateHumanTyping(this.activeInput, cleanedText, "medium");
           }
         } catch (err) {
           submitBtn.disabled = false;
@@ -3659,7 +3660,7 @@
               sendResponse({ success: true, message: "Continuous Auto-Like dimulai." });
               break;
             case "start_auto_reply": {
-              this._startAutoReply();
+              this._startThreadsAutoReply();
               sendResponse({ success: true, message: "Continuous Auto AI-Reply dimulai." });
               break;
             }

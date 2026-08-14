@@ -27,7 +27,8 @@
     "https://gemini.google.com/*",
     "https://generativelanguage.googleapis.com/*",
     "https://api.openai.com/*",
-    "https://api.groq.com/*"
+    "https://api.groq.com/*",
+    "https://api.anthropic.com/*"
   ],
   "background": {
     "service_worker": "public/background.bundle.js",

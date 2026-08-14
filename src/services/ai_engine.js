@@ -5,6 +5,17 @@
 
 import { getSettings } from '../utils/storage.js';
 
+function generateUUID() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
 export class AIEngine {
   static async generateContent(prompt, options = {}) {
     const settings = await getSettings();
@@ -125,7 +136,9 @@ export class AIEngine {
        platformRules += `\nVariants: Produce exactly ${options.variants} DIFFERENT variants of the post, each a complete and distinct take on the topic. Put a header line on its own before each variant, numbered 1..${options.variants}, like "===VARIANT 1===", "===VARIANT 2===", etc. After each variant header, include that variant's own "TOPIC LABEL: ..." line first, then the post text.`;
      }
 
-     return `${customSystemPrompt}\n\nPlatform Target: ${platform.toUpperCase()}\nTone: ${tone}\n${platformRules}\n\nTask/Topic: ${userTopic}\n\nGenerate high quality, ready-to-publish content. Return ONLY the final post text without quotes or meta commentary.`;
+     const sysPrompt = (customSystemPrompt || '').trim();
+     const prefix = sysPrompt ? `${sysPrompt}\n\n` : '';
+     return `${prefix}Platform Target: ${platform.toUpperCase()}\nTone: ${tone}\n${platformRules}\n\nTask/Topic: ${userTopic}\n\nGenerate high quality, ready-to-publish content. Return ONLY the final post text without quotes or meta commentary.`;
   }
 
   /**
@@ -154,8 +167,8 @@ export class AIEngine {
       throw new Error('Sesi login ChatGPT tidak ditemukan. Klik "Auto-Detect Cookie" di Settings.');
     }
 
-    const messageId = self.crypto ? self.crypto.randomUUID() : ('msg_' + Date.now());
-    const parentMessageId = self.crypto ? self.crypto.randomUUID() : ('par_' + Date.now());
+    const messageId = generateUUID();
+    const parentMessageId = generateUUID();
 
     headers['Authorization'] = `Bearer ${accessToken}`;
 

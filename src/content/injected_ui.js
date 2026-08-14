@@ -198,10 +198,18 @@ export class InjectedUIWidget {
           });
         });
 
+        // Clean metadata headers before typing
+        const cleanedText = (response || '')
+          .replace(/^TOPIC LABEL:\s*.+$/im, '')
+          .replace(/^===VARIANT\s*\d+===/im, '')
+          .replace(/^===(IMAGE|POLL)===.+$/im, '')
+          .replace(/<[^>]*>/g, '')
+          .trim();
+
         // Fill content into input
         overlay.remove();
         if (this.activeInput) {
-          await simulateHumanTyping(this.activeInput, response, 'medium');
+          await simulateHumanTyping(this.activeInput, cleanedText, 'medium');
         }
 
       } catch (err) {

@@ -317,33 +317,6 @@ class SidepanelApp {
     makeToggle('btnXAutoRetweet', 'x_retweet', 'start_x_auto_retweet', 'stop_x_auto_retweet', '🔁 Mulai Auto-Retweet',    '⏹️ Stop', '⏳ X Auto-Retweet dimulai...');
     makeToggle('btnXAutoFollow',  'x_follow',  'start_x_auto_follow',  'stop_x_auto_follow',  '➕ Mulai Auto-Follow',     '⏹️ Stop', '⏳ X Auto-Follow dimulai...');
 
-    // Generate AI Reply
-    document.getElementById('btnGenAIReply')?.addEventListener('click', async () => {
-      const btn = document.getElementById('btnGenAIReply');
-      btn.disabled = true; btn.textContent = '🤖 Generating...';
-      try {
-        const replyContent = await AIEngine.generateContent(
-          `Balas postingan di feed secara natural, singkat, relevan dan engaging.`,
-          { platform: 'threads', tone: this.getEffectiveTone(), threadsFormat: 'short' }
-        );
-        document.getElementById('replyText').value = replyContent;
-        showInteractResult(`✨ AI Reply berhasil digenerate!`);
-      } catch (e) { showInteractResult('❌ ' + e.message, true); }
-      finally { btn.disabled = false; btn.textContent = '✨ Generate AI Reply'; }
-    });
-
-    // Send Reply
-    document.getElementById('btnSendReply')?.addEventListener('click', async () => {
-      const btn = document.getElementById('btnSendReply');
-      const replyText = document.getElementById('replyText')?.value?.trim();
-      if (!replyText) { showInteractResult('❌ Teks balasan belum diisi.', true); return; }
-      btn.disabled = true; btn.textContent = '⏳ Mengisi balasan...';
-      try {
-        const res = await sendInteraction('reply_post', { replyText });
-        showInteractResult(`💬 ${res.message || 'Berhasil mengisikan balasan!'}`);
-      } catch (e) { showInteractResult('❌ ' + e.message, true); }
-      finally { btn.disabled = false; btn.textContent = '💬 Balas Post di Feed'; }
-    });
 
     // DOM Inspector Debug
     document.getElementById('btnDebugDom')?.addEventListener('click', async () => {
@@ -818,8 +791,11 @@ ATURAN:
       const statusLabel = document.getElementById('statusChatgptCookie');
       statusLabel.textContent = '⏳ Mengambil cookie chatgpt.com...';
       try {
-        const cookies = await new Promise(r => chrome.cookies.getAll({ domain: 'chatgpt.com' }, c => r(c || [])));
-        if (cookies.length === 0) {
+        let cookies = await new Promise(r => chrome.cookies.getAll({ url: 'https://chatgpt.com' }, c => r(c || [])));
+        if (!cookies || cookies.length === 0) {
+          cookies = await new Promise(r => chrome.cookies.getAll({ domain: 'chatgpt.com' }, c => r(c || [])));
+        }
+        if (!cookies || cookies.length === 0) {
           statusLabel.style.color = '#f87171';
           statusLabel.textContent = '⚠️ Tidak ada cookie ditemukan. Login di chatgpt.com terlebih dahulu.';
           return;
@@ -839,8 +815,11 @@ ATURAN:
       const statusLabel = document.getElementById('statusGeminiCookie');
       statusLabel.textContent = '⏳ Mengambil cookie gemini.google.com...';
       try {
-        const cookies = await new Promise(r => chrome.cookies.getAll({ domain: 'gemini.google.com' }, c => r(c || [])));
-        if (cookies.length === 0) {
+        let cookies = await new Promise(r => chrome.cookies.getAll({ url: 'https://gemini.google.com' }, c => r(c || [])));
+        if (!cookies || cookies.length === 0) {
+          cookies = await new Promise(r => chrome.cookies.getAll({ domain: 'gemini.google.com' }, c => r(c || [])));
+        }
+        if (!cookies || cookies.length === 0) {
           statusLabel.style.color = '#f87171';
           statusLabel.textContent = '⚠️ Tidak ada cookie ditemukan. Login di gemini.google.com terlebih dahulu.';
           return;
@@ -1034,7 +1013,9 @@ ATURAN:
         options: {
           ...(this.selectedPlatform === 'threads'
             ? { threadsMode: this.selectedThreadsMode || 'thread', threadsTopicLabel, threadsScheduledTime: extraOptions.scheduledTime || 0 }
-            : { facebookMode: 'post' }),
+            : this.selectedPlatform === 'facebook'
+            ? { facebookMode: 'post', facebookScheduledTime: extraOptions.scheduledTime || 0 }
+            : { xMode: 'post' }),
           imagePrompt
         }
       }

@@ -154,7 +154,7 @@ class ContentScriptController {
             break;
 
           case 'start_auto_reply': {
-            this._startAutoReply();
+            this._startThreadsAutoReply();
             sendResponse({ success: true, message: 'Continuous Auto AI-Reply dimulai.' });
             break;
           }

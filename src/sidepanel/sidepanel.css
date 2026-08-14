@@ -96,6 +96,13 @@ body {
   box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
 }
 
+.brand-icon img {
+  width: 28px;
+  height: 28px;
+  object-fit: cover;
+  border-radius: 8px;
+}
+
 .brand-icon svg {
   width: 20px;
   height: 20px;
