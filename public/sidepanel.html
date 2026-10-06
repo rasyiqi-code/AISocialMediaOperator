@@ -19,10 +19,18 @@
           <img src="icons/icon48.png" alt="AI Operator Icon" width="28" height="28" style="border-radius: 8px;">
         </div>
         <div class="brand-text">
-          <h1>AI Operator</h1>
+          <div class="brand-title-row">
+            <h1>AI Operator</h1>
+            <button class="version-badge" id="btnDevInfo" type="button" title="Info Developer & Versi">v1.1.1</button>
+          </div>
           <span class="badge-status online">Agent Active</span>
         </div>
       </div>
+      <button class="btn-icon-dev" id="btnDevInfoIcon" type="button" title="Info Developer" aria-label="Info Developer">
+        <svg viewBox="0 0 24 24" width="16" height="16">
+          <path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/>
+        </svg>
+      </button>
     </header>
 
     <!-- Navigation Tabs -->
@@ -403,6 +411,69 @@
       </section>
 
     </main>
+  </div>
+
+  <!-- Developer Info Modal -->
+  <div class="modal-overlay" id="devInfoModal" style="display: none;">
+    <div class="modal-content dev-modal" role="dialog" aria-modal="true" aria-labelledby="devModalTitle">
+      <div class="modal-header">
+        <div class="modal-title-wrap">
+          <div class="modal-title-icon">
+            <img src="icons/icon48.png" alt="AI Operator Icon" width="22" height="22" style="border-radius: 6px;">
+          </div>
+          <div>
+            <h3 id="devModalTitle">AI Social Media Operator</h3>
+            <span class="dev-version-tag">Versi 1.1.1 (Production)</span>
+          </div>
+        </div>
+        <button class="modal-close" id="btnCloseDevModal" type="button" aria-label="Tutup">&times;</button>
+      </div>
+      <div class="modal-body dev-info-body">
+        <div class="dev-info-section">
+          <span class="dev-label">Developer</span>
+          <div class="dev-profile-row">
+            <div class="dev-avatar">👨‍💻</div>
+            <div>
+              <strong class="dev-name">rasyiqi</strong>
+              <span class="dev-role">Full-Stack &amp; AI Agent Developer</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="dev-info-section">
+          <span class="dev-label">Deskripsi Sistem</span>
+          <p class="dev-bio">
+            Ekstensi browser AI Agent cerdas berbasis Chrome Manifest V3 untuk otomatisasi pembuatan konten multi-platform, penjadwalan native, dan interaksi sosial organik di Threads, Facebook, &amp; X (Twitter).
+          </p>
+        </div>
+
+        <div class="dev-info-grid">
+          <div class="dev-grid-item">
+            <span class="dev-grid-label">Versi Ekstensi</span>
+            <strong class="dev-grid-val">v1.1.1</strong>
+          </div>
+          <div class="dev-grid-item">
+            <span class="dev-grid-label">Platform Manifest</span>
+            <strong class="dev-grid-val">Manifest V3</strong>
+          </div>
+          <div class="dev-grid-item">
+            <span class="dev-grid-label">Model Engine</span>
+            <strong class="dev-grid-val">Gemini, Claude, GPT</strong>
+          </div>
+          <div class="dev-grid-item">
+            <span class="dev-grid-label">Target Jejaring</span>
+            <strong class="dev-grid-val">Threads, FB, X</strong>
+          </div>
+        </div>
+
+        <div class="dev-info-actions">
+          <a href="https://github.com/rasyiqi-code/AISocialMediaOperator" target="_blank" rel="noopener noreferrer" class="btn-github">
+            <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M12 2A10 10 0 0 0 2 12c0 4.42 2.87 8.17 6.84 9.5.5.08.66-.23.66-.5v-1.69c-2.77.6-3.36-1.34-3.36-1.34-.46-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.6.07-.6 1 .07 1.53 1.03 1.53 1.03.87 1.52 2.34 1.07 2.91.83.1-.65.35-1.09.63-1.34-2.22-.25-4.55-1.11-4.55-4.92 0-1.11.38-2 1.03-2.71-.1-.25-.45-1.29.1-2.64 0 0 .84-.27 2.75 1.02.79-.22 1.65-.33 2.5-.33.85 0 1.71.11 2.5.33 1.91-1.29 2.75-1.02 2.75-1.02.55 1.35.2 2.39.1 2.64.65.71 1.03 1.6 1.03 2.71 0 3.82-2.34 4.66-4.57 4.91.36.31.69.92.69 1.85V21c0 .27.16.59.67.5C19.14 20.16 22 16.42 22 12A10 10 0 0 0 12 2z"/></svg>
+            <span>Lihat Repository di GitHub</span>
+          </a>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script type="module" src="../src/sidepanel/sidepanel.js"></script>

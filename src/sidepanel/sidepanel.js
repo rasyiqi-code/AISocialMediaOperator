@@ -117,6 +117,7 @@ class SidepanelApp {
     // rest of the UI from working.
     const safe = (fn) => { try { fn(); } catch (e) { console.error('[Sidepanel] Bind error:', e); } };
     safe(() => this.bindNavigation());
+    safe(() => this.bindDevModalEvents());
     safe(() => this.bindStudioEvents());
     safe(() => this.bindIdeaEvents());
     safe(() => this.bindSettingsEvents());
@@ -127,6 +128,27 @@ class SidepanelApp {
     await this.detectActivePlatform();
     await this.loadSettings();
     await this.loadLogs();
+  }
+
+  // Developer Info Modal
+  bindDevModalEvents() {
+    const devModal = document.getElementById('devInfoModal');
+    const openDevModal = () => { if (devModal) devModal.style.display = 'flex'; };
+    const closeDevModal = () => { if (devModal) devModal.style.display = 'none'; };
+
+    document.getElementById('btnDevInfo')?.addEventListener('click', openDevModal);
+    document.getElementById('btnDevInfoIcon')?.addEventListener('click', openDevModal);
+    document.getElementById('btnCloseDevModal')?.addEventListener('click', closeDevModal);
+
+    devModal?.addEventListener('click', (e) => {
+      if (e.target === devModal) closeDevModal();
+    });
+
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && devModal && devModal.style.display === 'flex') {
+        closeDevModal();
+      }
+    });
   }
 
   async detectActivePlatform() {
