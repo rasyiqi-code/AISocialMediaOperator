@@ -171,7 +171,7 @@ body {
 /* Content Area */
 .content-area {
   flex: 1;
-  padding: 16px;
+  padding: 16px 16px 36px 16px;
 }
 
 .tab-view {
@@ -182,20 +182,33 @@ body {
   display: block;
 }
 
-/* Card */
+/* Seamless Container-less Layout (No outer card box) */
 .card {
-  background: var(--bg-card);
-  border: 1px solid var(--border-color);
-  border-radius: 14px;
-  padding: 18px;
-  backdrop-filter: blur(8px);
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  backdrop-filter: none;
+  box-shadow: none;
+}
+
+.card-header {
+  margin-bottom: 18px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .card-header h2 {
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 700;
-  margin-bottom: 14px;
-  color: #f1f5f9;
+  color: #f8fafc;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 0;
 }
 
 .flex-between {
@@ -827,11 +840,11 @@ body {
 }
 
 .idea-generator {
-  background: rgba(99, 102, 241, 0.08);
-  border: 1px dashed rgba(99, 102, 241, 0.4);
-  border-radius: 10px;
-  padding: 8px 12px;
-  margin-bottom: 14px;
+  background: rgba(99, 102, 241, 0.05);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 16px;
 }
 
 .idea-generator summary {
