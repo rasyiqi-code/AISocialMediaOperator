@@ -1,11 +1,11 @@
 {
   "name": "ai-social-media-operator",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "description": "Browser extension agent for automated content generation and social media interaction on Threads, Facebook, and X",
   "main": "src/background/background.js",
   "scripts": {
     "build": "npx --yes esbuild src/content/content_main.js --bundle --outfile=public/content_main.bundle.js --format=iife && npx --yes esbuild src/background/background.js --bundle --outfile=public/background.bundle.js --format=esm",
-    "package": "npm run build && zip -r ai-social-media-operator-v1.1.1.zip manifest.json public/ src/ -x '*.DS_Store'",
+    "package": "npm run build && zip -r ai-social-media-operator-v1.2.0.zip manifest.json public/ src/ -x '*.DS_Store'",
     "watch": "npx --yes esbuild src/content/content_main.js --bundle --outfile=public/content_main.bundle.js --format=iife --watch"
   },
   "keywords": [
@@ -20,6 +20,6 @@
     "gemini",
     "chatgpt"
   ],
-  "author": "Antigravity AI",
+  "author": "rasyiqi",
   "license": "MIT"
 }
