@@ -72,10 +72,24 @@ class ContentScriptController {
       }
     });
 
-    // Auto-reply NEVER resumes automatically. Clear any stale flag left from a
-    // previous session so a page reload / extension reload cannot restart it.
+    // Resume Threads Auto AI-Reply ONLY if tab-scoped loop is active
     if (this.platformKey === 'threads') {
-      chrome.storage.local.remove('autoReplyRunning');
+      const activeReplyMode = sessionStorage.getItem('threadsAutoLoopMode');
+      if (activeReplyMode === 'reply') {
+        console.log('[AI Social Media Operator] Resuming Threads Auto AI-Reply after reload...');
+        setTimeout(() => { this._startThreadsAutoReply(); }, 2000);
+      } else {
+        chrome.storage.local.remove('autoReplyRunning');
+      }
+    }
+
+    // Resume Facebook Auto-Comment ONLY if tab-scoped loop is active
+    if (this.platformKey === 'facebook') {
+      const activeCommentMode = sessionStorage.getItem('fbAutoLoopMode');
+      if (activeCommentMode === 'comment') {
+        console.log('[AI Social Media Operator] Resuming Facebook Auto-Comment after reload...');
+        setTimeout(() => { this._startFbAutoComment(); }, 2000);
+      }
     }
 
     // Resume X Auto AI-Reply or Auto Quote Tweet ONLY if tab-scoped loop is active
@@ -154,6 +168,7 @@ class ContentScriptController {
             break;
 
           case 'start_auto_reply': {
+            try { sessionStorage.setItem('threadsAutoLoopMode', 'reply'); } catch (e) {}
             this._startThreadsAutoReply();
             sendResponse({ success: true, message: 'Continuous Auto AI-Reply dimulai.' });
             break;
@@ -182,6 +197,7 @@ class ContentScriptController {
             break;
 
           case 'start_fb_auto_comment':
+            try { sessionStorage.setItem('fbAutoLoopMode', 'comment'); } catch (e) {}
             this._startFbAutoComment();
             sendResponse({ success: true, message: 'FB Auto AI-Comment dimulai.' });
             break;
@@ -262,7 +278,11 @@ class ContentScriptController {
           case 'stop_x_auto_follow':
           case 'stop_all':
             this.interaction.stop();
-            sessionStorage.removeItem('xAutoLoopMode');
+            try {
+              sessionStorage.removeItem('threadsAutoLoopMode');
+              sessionStorage.removeItem('fbAutoLoopMode');
+              sessionStorage.removeItem('xAutoLoopMode');
+            } catch (e) {}
             chrome.storage.local.remove(['autoReplyRunning', 'fbAutoStoryPending', 'fbAutoPersonalPending', 'xAutoReplyPending', 'xAutoQuotePending']);
             sendResponse({ success: true, message: 'Interaksi dihentikan.' });
             break;

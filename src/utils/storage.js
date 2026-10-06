@@ -11,7 +11,7 @@ export const DEFAULT_SETTINGS = {
   apiModel: '',
   claudeApiKey: '',
   claudeEndpoint: '',
-  claudeModel: '',
+  claudeModel: 'claude-3-7-sonnet-20250219',
   customSystemPrompt: 'You are an expert social media strategist and content creator. Create engaging, high-performing posts tailored for the requested platform.',
   humanTypingSpeed: 'medium',
   minRandomDelay: 5,

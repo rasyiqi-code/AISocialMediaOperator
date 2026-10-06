@@ -8,6 +8,7 @@ import { randomDelay } from '../../utils/dom_helpers.js';
 
 export const GeneralHelpers = {
   MONTHS_ID: ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'],
+  MONTHS_EN: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'],
 
   /**
    * Click an element using React-safe mouse events.
@@ -22,13 +23,16 @@ export const GeneralHelpers = {
   },
 
   /**
-   * First element whose trimmed text matches a regex.
+   * First element whose trimmed text or aria-label matches a regex.
    */
   findByText(root, regex, limit = 60) {
     const els = Array.from(root.querySelectorAll('div[role="button"], button, [role="menuitem"], [role="option"]'));
     for (const el of els) {
-      const t = (el.textContent || '').trim();
-      if (t && t.length <= limit && regex.test(t)) return el;
+      const text = (el.textContent || '').trim();
+      const aria = (el.getAttribute('aria-label') || '').trim();
+      if ((text && text.length <= limit && regex.test(text)) || (aria && aria.length <= limit && regex.test(aria))) {
+        return el;
+      }
     }
     return null;
   },
@@ -108,7 +112,7 @@ export const GeneralHelpers = {
   async schedulePost(config = {}, targetTime) {
     const {
       composerRoot,
-      confirmRegexes = [/^jadwalkan$/i, /^kirim$/i, /^post$/i],
+      confirmRegexes = [/^(jadwalkan|schedule|kirim|post|posting|send)$/i],
       timeInputCheck,
       tag = 'Helper'
     } = config;
@@ -125,7 +129,7 @@ export const GeneralHelpers = {
     const timeOk = await this.setTime(dialog, targetTime, timeInputCheck);
     console.log(`[${tag}] Jadwal: tanggal`, dayOk ? 'OK' : 'GAGAL', '| waktu', timeOk ? 'OK' : 'GAGAL');
 
-    const selesai = this.findByText(dialog, /^selesai$/i, 20);
+    const selesai = this.findByText(dialog, /^(selesai|done)$/i, 20);
     if (selesai) this.clickElement(selesai);
     await randomDelay(0.8, 1.2);
 
@@ -142,19 +146,27 @@ export const GeneralHelpers = {
    * Click prev/next month buttons until the calendar shows targetTime's month.
    */
   async navigateToMonth(dialog, targetTime) {
-    const targetLabel = `${this.MONTHS_ID[targetTime.getMonth()]} ${targetTime.getFullYear()}`;
+    const mIdx = targetTime.getMonth();
+    const year = targetTime.getFullYear();
+    const targetLabelId = `${this.MONTHS_ID[mIdx]} ${year}`;
+    const targetLabelEn = `${this.MONTHS_EN[mIdx]} ${year}`;
+
     for (let i = 0; i < 24; i++) {
-      if ((dialog.textContent || '').includes(targetLabel)) return true;
-      const m = (dialog.textContent || '').match(/([A-Za-z]+)\s+(\d{4})/);
+      const text = (dialog.textContent || '');
+      if (text.includes(targetLabelId) || text.includes(targetLabelEn)) return true;
+      const m = text.match(/([A-Za-z]+)\s+(\d{4})/);
       if (!m) return false;
-      const curIdx = this.MONTHS_ID.findIndex(name => name.toLowerCase() === m[1].toLowerCase());
+      let curIdx = this.MONTHS_ID.findIndex(name => name.toLowerCase() === m[1].toLowerCase());
+      if (curIdx === -1) {
+        curIdx = this.MONTHS_EN.findIndex(name => name.toLowerCase() === m[1].toLowerCase());
+      }
       const curYear = parseInt(m[2], 10);
       if (curIdx === -1 || isNaN(curYear)) return false;
       const curTotal = curYear * 12 + curIdx;
       const targetTotal = targetTime.getFullYear() * 12 + targetTime.getMonth();
       const btn = curTotal < targetTotal
-        ? dialog.querySelector('button[aria-label="Bulan Berikutnya"], button[aria-label*="Bulan Berikutnya"]')
-        : dialog.querySelector('button[aria-label="Bulan Sebelumnya"], button[aria-label*="Bulan Sebelumnya"]');
+        ? dialog.querySelector('button[aria-label*="Bulan Berikutnya" i], button[aria-label*="Next month" i], button[aria-label*="Next" i]')
+        : dialog.querySelector('button[aria-label*="Bulan Sebelumnya" i], button[aria-label*="Previous month" i], button[aria-label*="Previous" i]');
       if (!btn) return false;
       this.clickElement(btn);
       await randomDelay(0.4, 0.7);
@@ -163,31 +175,37 @@ export const GeneralHelpers = {
   },
 
   /**
-   * Click the calendar cell matching targetTime's day. Tries, in order: an
-   * aria-label with the full date, a text cell in Indonesian date format
-   * ("Kamis, 6 Agustus 20266"), then a bare day number inside the grid.
+   * Click the calendar cell matching targetTime's day.
    */
   clickDayCell(dialog, targetTime) {
     const d = targetTime.getDate();
-    const monthName = this.MONTHS_ID[targetTime.getMonth()];
+    const mIdx = targetTime.getMonth();
+    const monthNameId = this.MONTHS_ID[mIdx];
+    const monthNameEn = this.MONTHS_EN[mIdx];
     const yearStr = String(targetTime.getFullYear());
 
     const candidates = Array.from(dialog.querySelectorAll('[role="gridcell"], [role="button"], td, [aria-label]'));
 
-    // 1) aria-label with full date, e.g. "Kamis, 6 Agustus 2026"
+    // 1) aria-label with full date (Indonesian or English)
     for (const c of candidates) {
       const aria = (c.getAttribute('aria-label') || '');
-      if (aria && aria.includes(` ${d} `) && aria.includes(monthName) && aria.includes(yearStr)) {
+      if (
+        aria &&
+        aria.includes(` ${d} `) &&
+        (aria.includes(monthNameId) || aria.includes(monthNameEn)) &&
+        aria.includes(yearStr)
+      ) {
         this.clickElement(c);
         return true;
       }
     }
 
-    // 2) text date cells, e.g. "Kamis, 6 Agustus 20266" / "Sabtu, 01 Agustus 20261"
-    const dayMatch = new RegExp('(\\d{1,2})\\s+' + monthName + '\\s+' + yearStr);
+    // 2) text date cells, e.g. "Kamis, 6 Agustus 2026" / "Thursday, 6 August 2026"
+    const dayMatchId = new RegExp('(\\d{1,2})\\s+' + monthNameId + '\\s+' + yearStr, 'i');
+    const dayMatchEn = new RegExp('(\\d{1,2})\\s+' + monthNameEn + '\\s+' + yearStr, 'i');
     for (const c of candidates) {
       const t = (c.textContent || '');
-      const m = t.match(dayMatch);
+      const m = t.match(dayMatchId) || t.match(dayMatchEn);
       if (m && parseInt(m[1], 10) === d) {
         this.clickElement(c);
         return true;
@@ -209,8 +227,7 @@ export const GeneralHelpers = {
 
   /**
    * Set the time in the schedule dialog. Handles native <input type="time">,
-   * separate hh/mm text inputs (e.g. Threads with placeholders "hh"/"mm"),
-   * and generic heuristics.
+   * separate hh/mm (or jj/mm) text inputs, and generic heuristics.
    */
   async setTime(dialog, targetTime, timeInputCheck) {
     const hh = String(targetTime.getHours()).padStart(2, '0');
@@ -220,9 +237,9 @@ export const GeneralHelpers = {
     let input = dialog.querySelector('input[type="time"]');
     if (input) { this.setNativeValue(input, `${hh}:${mm}`); await randomDelay(0.4, 0.8); return true; }
 
-    // 2) separate hour / minute text inputs (placeholder "hh" / "mm")
+    // 2) separate hour / minute text inputs (placeholder "hh" or "jj" / "mm")
     const inputs = Array.from(dialog.querySelectorAll('input'));
-    const hhInput = inputs.find(i => /^hh$/i.test((i.placeholder || '').trim()));
+    const hhInput = inputs.find(i => /^(hh|jj)$/i.test((i.placeholder || '').trim()));
     const mmInput = inputs.find(i => /^mm$/i.test((i.placeholder || '').trim()));
     if (hhInput && mmInput) {
       this.setNativeValue(hhInput, hh);
@@ -236,7 +253,7 @@ export const GeneralHelpers = {
     input = inputs.find(i => {
       if (timeInputCheck && timeInputCheck(i)) return true;
       const aria = (i.getAttribute('aria-label') || '').toLowerCase();
-      return /waktu|jam|pukul|time/.test(aria) || /^\d{1,2}[:.]\d{2}/.test(i.value || '') || /jam/i.test(i.placeholder || '');
+      return /waktu|jam|pukul|time|hour/.test(aria) || /^\d{1,2}[:.]\d{2}/.test(i.value || '') || /jam|hour/i.test(i.placeholder || '');
     }) || null;
     if (!input) return false;
     this.setNativeValue(input, `${hh}:${mm}`);

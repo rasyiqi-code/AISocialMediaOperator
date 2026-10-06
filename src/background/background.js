@@ -28,13 +28,21 @@ async function handleMessage(message, sender) {
 
   switch (action) {
     case 'GENERATE_CONTENT': {
-      await addActivityLog(`Meminta AI Generate (${payload.platform})`, `Topik: ${payload.prompt}`, 'info');
+      await addActivityLog(`Meminta AI Generate (${payload.platform || 'general'})`, `Topik: ${payload.prompt || ''}`, 'info');
       const generatedText = await AIEngine.generateContent(payload.prompt, {
         platform: payload.platform,
         tone: payload.tone,
-        provider: payload.provider
+        provider: payload.provider,
+        threadsFormat: payload.threadsFormat,
+        threadsMode: payload.threadsMode,
+        useEmoji: payload.useEmoji,
+        useImage: payload.useImage,
+        usePoll: payload.usePoll,
+        variants: payload.variants,
+        ...(payload.options || {}),
+        ...(payload || {})
       });
-      await addActivityLog(`AI Generasi Berhasil (${payload.platform})`, 'Konten siap diisikan', 'success');
+      await addActivityLog(`AI Generasi Berhasil (${payload.platform || 'general'})`, 'Konten siap diisikan', 'success');
       return generatedText;
     }
 

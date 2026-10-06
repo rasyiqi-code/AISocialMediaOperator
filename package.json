@@ -4,9 +4,9 @@
   "description": "Browser extension agent for automated content generation and social media interaction on Threads, Facebook, and X",
   "main": "src/background/background.js",
   "scripts": {
-    "build": "npx esbuild src/content/content_main.js --bundle --outfile=public/content_main.bundle.js --format=iife && npx esbuild src/background/background.js --bundle --outfile=public/background.bundle.js --format=esm",
+    "build": "npx --yes esbuild src/content/content_main.js --bundle --outfile=public/content_main.bundle.js --format=iife && npx --yes esbuild src/background/background.js --bundle --outfile=public/background.bundle.js --format=esm",
     "package": "npm run build && zip -r ai-social-media-operator-v1.1.1.zip manifest.json public/ src/ -x '*.DS_Store'",
-    "watch": "npx esbuild src/content/content_main.js --bundle --outfile=public/content_main.bundle.js --format=iife --watch"
+    "watch": "npx --yes esbuild src/content/content_main.js --bundle --outfile=public/content_main.bundle.js --format=iife --watch"
   },
   "keywords": [
     "chrome-extension",

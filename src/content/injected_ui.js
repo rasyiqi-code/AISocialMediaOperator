@@ -67,6 +67,7 @@ export class InjectedUIWidget {
                          targetInput.parentElement;
 
     if (composerRoot) {
+      if (composerRoot.querySelector('.ai-operator-floating-btn')) return;
       if (getComputedStyle(composerRoot).position === 'static') {
         composerRoot.style.position = 'relative';
       }
@@ -189,7 +190,8 @@ export class InjectedUIWidget {
             payload: {
               prompt: topic,
               platform: this.platform,
-              tone: this.selectedTone
+              tone: this.selectedTone,
+              threadsFormat: 'short'
             }
           }, (res) => {
             if (chrome.runtime.lastError) return reject(chrome.runtime.lastError.message);

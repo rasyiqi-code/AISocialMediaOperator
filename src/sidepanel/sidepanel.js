@@ -66,10 +66,16 @@ function parseVariantWithLabel(raw, fallbackTopic) {
   if (imageMatch) {
     cleaned = cleaned.replace(/^===IMAGE===\s*.+$/im, '').trim();
   }
+  // Extract and strip poll line if present
+  const pollMatch = cleaned.match(/^===POLL===\s*(.+)$/im);
+  const pollLine = pollMatch ? pollMatch[1].trim() : '';
+  if (pollMatch) {
+    cleaned = cleaned.replace(/^===POLL===\s*.+$/im, '').trim();
+  }
   // Safety: drop any leaked variant header / stray "VARIANT n" line
   cleaned = cleaned
-    .replace(/^(?:=+|u003d)+\s*(?:VARIANT|VARIAN)\s*\d+\s*(?:=+|u003d)+\s*$/gim, '')
-    .replace(/^VARIANT\s*\d+\s*$/gim, '')
+    .replace(/^(?:#{1,6}\s*)?(?:=+|u003d)+\s*(?:VARIANT|VARIAN)\s*\d+\s*(?:=+|u003d)+\s*$/gim, '')
+    .replace(/^(?:#{1,6}\s*)?(?:VARIANT|VARIAN)\s*\d+\s*[:\-]?\s*$/gim, '')
     .trim();
 
   const STOP = ['kenapa','mengapa','apa','bagaimana','berapa','kapan','yang','untuk','dengan','dari','ke','di','itu','ini','anda','kamu','lu','gue','akan','adalah'];
@@ -86,14 +92,14 @@ function parseVariantWithLabel(raw, fallbackTopic) {
   if (!label) label = pickLabel(fallbackTopic);
   if (!label) label = pickLabel(cleaned.split(/\r?\n/)[0]);
 
-  return { text: cleaned, label, imagePrompt };
+  return { text: cleaned, label, imagePrompt, pollLine };
 }
 
 function parseVariants(raw, fallbackTopic) {
   if (!raw) return [];
   const parts = raw
-    // Whole-line variant headers; tolerate mangled "u003d" (unescaped "=")
-    .split(/^(?:=+|u003d)+\s*(?:VARIANT|VARIAN)\s*\d+\s*(?:=+|u003d)+\s*$/gim)
+    // Whole-line variant headers; tolerate markdown headers and mangled "u003d" (unescaped "=")
+    .split(/^(?:#{1,6}\s*)?(?:=+|u003d)+\s*(?:VARIANT|VARIAN)\s*\d+\s*(?:=+|u003d)+\s*$/gim)
     .map(s => s.trim())
     .filter(Boolean);
   return (parts.length > 1 ? parts : [raw.trim()]).map(s => parseVariantWithLabel(s, fallbackTopic));
@@ -500,6 +506,8 @@ class SidepanelApp {
         const card = document.createElement('div');
         card.className = 'variant-card';
         if (imagePrompt) card.dataset.imagePrompt = imagePrompt;
+        const pollLine = typeof item === 'object' ? (item.pollLine || '') : '';
+        if (pollLine) card.dataset.pollLine = pollLine;
        const isMulti = variants.length > 1;
        card.innerHTML = `
          <div class="result-header">
@@ -847,6 +855,7 @@ ATURAN:
          claudeModel: document.getElementById('cfgClaudeModel')?.value.trim() || '',
          customSystemPrompt: document.getElementById('cfgSystemPrompt').value,
          customTone: document.getElementById('customToneInput')?.value.trim() || '',
+         threadsProfileHandle: document.getElementById('cfgThreadsProfileHandle')?.value.trim() || '',
          humanTypingSpeed: document.getElementById('cfgTypingSpeed').value,
          imageGenEndpoint: document.getElementById('cfgImageEndpoint')?.value.trim() || '',
          imageGenModel: document.getElementById('cfgImageModel')?.value.trim() || '',
@@ -872,6 +881,8 @@ ATURAN:
        const claudeModelEl = document.getElementById('cfgClaudeModel');
        if (claudeEndpointEl) claudeEndpointEl.value = s.claudeEndpoint || '';
        if (claudeModelEl) claudeModelEl.value = s.claudeModel || '';
+       const threadsHandleEl = document.getElementById('cfgThreadsProfileHandle');
+       if (threadsHandleEl) threadsHandleEl.value = s.threadsProfileHandle || '';
        document.getElementById('cfgSystemPrompt').value = s.customSystemPrompt || '';
        const customToneInput = document.getElementById('customToneInput');
        if (customToneInput) customToneInput.value = s.customTone || '';
@@ -1012,7 +1023,7 @@ ATURAN:
         content,
         options: {
           ...(this.selectedPlatform === 'threads'
-            ? { threadsMode: this.selectedThreadsMode || 'thread', threadsTopicLabel, threadsScheduledTime: extraOptions.scheduledTime || 0 }
+            ? { threadsMode: this.selectedThreadsMode || 'thread', threadsTopicLabel, threadsPollLine: card.dataset.pollLine || '', threadsScheduledTime: extraOptions.scheduledTime || 0 }
             : this.selectedPlatform === 'facebook'
             ? { facebookMode: 'post', facebookScheduledTime: extraOptions.scheduledTime || 0 }
             : { xMode: 'post' }),

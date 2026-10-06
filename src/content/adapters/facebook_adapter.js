@@ -80,15 +80,21 @@ export const FacebookAdapter = {
    * This navigates from composer to post settings panel.
    */
   async clickNextButton() {
-    const btn = findByAriaLabel(document, 'Berikutnya');
+    const btn = findByAriaLabel(document, 'Berikutnya') || 
+                findByAriaLabel(document, 'Next') ||
+                findByText(document, /^(berikutnya|next)$/i);
     if (btn) {
       GeneralHelpers.clickElement(btn);
       // Wait for settings panel to load
       await waitForElement([
         'div[aria-label="Kirim"][role="button"]',
+        'div[aria-label="Post"][role="button"]',
         'div[aria-label="Kirim"][role="button"] span',
+        'div[aria-label="Post"][role="button"] span',
         'div[role="button"][aria-label="Opsi penjadwalan"]',
-        'div[role="button"][aria-label="Jadwalkan untuk nanti"]'
+        'div[role="button"][aria-label="Scheduling options"]',
+        'div[role="button"][aria-label="Jadwalkan untuk nanti"]',
+        'div[role="button"][aria-label="Schedule for later"]'
       ], 5000).catch(() => {});
       await randomDelay(1, 2);
       return true;
@@ -101,7 +107,9 @@ export const FacebookAdapter = {
    * In the settings panel, "Opsi penjadwalan" is shown with "Terbitkan sekarang".
    */
   async openSchedulePanel() {
-    const scheduleSection = findByText(document, /Opsi penjadwalan/i);
+    const scheduleSection = findByText(document, /Opsi penjadwalan|Scheduling options/i) ||
+                            findByAriaLabel(document, 'Opsi penjadwalan') ||
+                            findByAriaLabel(document, 'Scheduling options');
     if (scheduleSection) {
       GeneralHelpers.clickElement(scheduleSection);
       await randomDelay(1, 2);
@@ -114,7 +122,9 @@ export const FacebookAdapter = {
    * Click "Jadwalkan untuk nanti" inside the schedule dialog.
    */
   async clickScheduleForLater() {
-    const btn = findByAriaLabel(document, 'Jadwalkan untuk nanti');
+    const btn = findByAriaLabel(document, 'Jadwalkan untuk nanti') ||
+                findByAriaLabel(document, 'Schedule for later') ||
+                findByText(document, /Jadwalkan untuk nanti|Schedule for later/i);
     if (btn) {
       GeneralHelpers.clickElement(btn);
       await randomDelay(1, 2);
@@ -176,10 +186,16 @@ export const FacebookAdapter = {
       'div[aria-label="Kirim"][role="button"]',
       'div[aria-label="Post"][role="button"]',
       'div[aria-label="Kirim"][role="button"] span',
-      'div[role="button"][aria-label="Kirim"]'
+      'div[aria-label="Post"][role="button"] span',
+      'div[role="button"][aria-label="Kirim"]',
+      'div[role="button"][aria-label="Post"]'
     ], 8000).catch(() => null);
 
-    const btn = res ? res.element : findByAriaLabel(document, 'Kirim');
+    const btn = res ? res.element : (
+      findByAriaLabel(document, 'Kirim') ||
+      findByAriaLabel(document, 'Post') ||
+      findByText(document, /^(kirim|post|posting)$/i)
+    );
     if (btn) {
       GeneralHelpers.clickElement(btn);
       await randomDelay(2, 4);
@@ -205,8 +221,10 @@ export const FacebookAdapter = {
     // Click "Berikutnya" to go to settings
     const nextClicked = await this.clickNextButton();
     if (!nextClicked) {
-      // Fallback: try to find Kirim button directly (simple post without settings)
-      const postBtn = findByAriaLabel(document, 'Kirim');
+      // Fallback: try to find Kirim / Post button directly (simple post without settings)
+      const postBtn = findByAriaLabel(document, 'Kirim') ||
+                      findByAriaLabel(document, 'Post') ||
+                      findByText(document, /^(kirim|post|posting)$/i);
       if (postBtn) {
         GeneralHelpers.clickElement(postBtn);
         await randomDelay(2, 4);

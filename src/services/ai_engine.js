@@ -54,12 +54,12 @@ export class AIEngine {
 
     if (primary === 'cookie_chatgpt') {
       chain.push('cookie_gemini');
+    } else if (primary === 'cookie_gemini') {
+      chain.push('cookie_chatgpt');
     }
 
-    if (primary === 'cookie_gemini' || primary === 'cookie_chatgpt') {
-      for (const api of apiAvailable) {
-        if (!chain.includes(api)) chain.push(api);
-      }
+    for (const api of apiAvailable) {
+      if (!chain.includes(api)) chain.push(api);
     }
 
     return chain;
@@ -421,7 +421,10 @@ export class AIEngine {
       throw new Error('API Key belum diisi. Silakan isi di tab Settings.');
     }
 
-    const endpoint = settings.apiEndpoint || 'https://api.openai.com/v1/chat/completions';
+    let endpoint = (settings.apiEndpoint || 'https://api.openai.com/v1/chat/completions').trim();
+    if (!endpoint.endsWith('/chat/completions') && !endpoint.includes('/chat/')) {
+      endpoint = endpoint.replace(/\/+$/, '') + '/chat/completions';
+    }
     const model = settings.apiModel || 'gpt-4o-mini';
 
     const response = await fetch(endpoint, {
@@ -460,7 +463,7 @@ export class AIEngine {
     }
 
     const endpoint = settings.claudeEndpoint || 'https://api.anthropic.com/v1/messages';
-    const model = settings.claudeModel || 'claude-sonnet-4-20250514';
+    const model = settings.claudeModel || 'claude-3-7-sonnet-20250219';
 
     const response = await fetch(endpoint, {
       method: 'POST',

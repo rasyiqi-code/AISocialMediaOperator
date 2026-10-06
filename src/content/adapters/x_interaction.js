@@ -185,6 +185,21 @@ function scanXFollowButtons() {
   return followButtons;
 }
 
+function loadXProcessedUrls() {
+  try {
+    const raw = sessionStorage.getItem('xProcessedUrls');
+    return new Set(raw ? JSON.parse(raw) : []);
+  } catch (e) {
+    return new Set();
+  }
+}
+
+function saveXProcessedUrls(set) {
+  try {
+    sessionStorage.setItem('xProcessedUrls', JSON.stringify(Array.from(set).slice(-500)));
+  } catch (e) {}
+}
+
 export const XInteraction = {
   name: 'XInteraction',
   isRunning: false,
@@ -193,6 +208,10 @@ export const XInteraction = {
   async stop() {
     this.isRunning = false;
     this.activeTask = null;
+    try {
+      sessionStorage.removeItem('xAutoLoopMode');
+      sessionStorage.removeItem('xProcessedUrls');
+    } catch (e) {}
     console.log('[XInteraction] Stopped.');
   },
 
@@ -231,9 +250,10 @@ export const XInteraction = {
     if (this.isRunning) await this.stop();
     this.isRunning = true;
     this.activeTask = 'reply';
+    try { sessionStorage.setItem('xAutoLoopMode', 'reply'); } catch (e) {}
     let count = 0;
     const processedArticles = new WeakSet();
-    const processedUrls = new Set();
+    const processedUrls = loadXProcessedUrls();
 
     console.log('[XInteraction] Auto-Reply (Status Page Flow) started...');
 
@@ -264,6 +284,7 @@ export const XInteraction = {
 
         if (input && postText && !processedUrls.has(currentUrl)) {
           processedUrls.add(currentUrl);
+          saveXProcessedUrls(processedUrls);
           console.log('[XInteraction] Target tweet found on status page:', author, postText.slice(0, 60));
 
           let replyText = '';
@@ -338,7 +359,10 @@ export const XInteraction = {
         processedArticles.add(target.element);
         const link = target.element.querySelector('a[href*="/status/"]');
         const href = link ? link.getAttribute('href') : '';
-        if (href) processedUrls.add(href);
+        if (href) {
+          processedUrls.add(href);
+          saveXProcessedUrls(processedUrls);
+        }
 
         try {
           console.log('[XInteraction] Target found:', target.author, href);
@@ -446,8 +470,10 @@ export const XInteraction = {
     if (this.isRunning) await this.stop();
     this.isRunning = true;
     this.activeTask = 'quote';
+    try { sessionStorage.setItem('xAutoLoopMode', 'quote'); } catch (e) {}
     let count = 0;
     const processedArticles = new WeakSet();
+    const processedUrls = loadXProcessedUrls();
 
     console.log('[XInteraction] Auto Quote Tweet started...');
 
@@ -463,10 +489,23 @@ export const XInteraction = {
       }
 
       const tweets = scanXTweets(40);
-      const target = tweets.find(t => t.retweetBtn && t.text && t.text.length > 10 && !processedArticles.has(t.element));
+      const target = tweets.find(t => {
+        if (!t.retweetBtn || !t.text || t.text.length < 10) return false;
+        if (processedArticles.has(t.element)) return false;
+        const link = t.element.querySelector('a[href*="/status/"]');
+        const href = link ? link.getAttribute('href') : '';
+        if (href && processedUrls.has(href)) return false;
+        return true;
+      });
 
       if (target) {
         processedArticles.add(target.element);
+        const link = target.element.querySelector('a[href*="/status/"]');
+        const href = link ? link.getAttribute('href') : '';
+        if (href) {
+          processedUrls.add(href);
+          saveXProcessedUrls(processedUrls);
+        }
         try {
           target.element.scrollIntoView({ behavior: 'smooth', block: 'center' });
           await randomDelay(1, 1.8);

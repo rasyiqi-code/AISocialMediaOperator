@@ -363,6 +363,7 @@
   // src/content/adapters/general_helpers.js
   var GeneralHelpers = {
     MONTHS_ID: ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"],
+    MONTHS_EN: ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"],
     /**
      * Click an element using React-safe mouse events.
      */
@@ -378,13 +379,16 @@
       return true;
     },
     /**
-     * First element whose trimmed text matches a regex.
+     * First element whose trimmed text or aria-label matches a regex.
      */
     findByText(root, regex, limit = 60) {
       const els = Array.from(root.querySelectorAll('div[role="button"], button, [role="menuitem"], [role="option"]'));
       for (const el of els) {
-        const t = (el.textContent || "").trim();
-        if (t && t.length <= limit && regex.test(t)) return el;
+        const text = (el.textContent || "").trim();
+        const aria = (el.getAttribute("aria-label") || "").trim();
+        if (text && text.length <= limit && regex.test(text) || aria && aria.length <= limit && regex.test(aria)) {
+          return el;
+        }
       }
       return null;
     },
@@ -451,7 +455,7 @@
     async schedulePost(config = {}, targetTime) {
       const {
         composerRoot,
-        confirmRegexes = [/^jadwalkan$/i, /^kirim$/i, /^post$/i],
+        confirmRegexes = [/^(jadwalkan|schedule|kirim|post|posting|send)$/i],
         timeInputCheck,
         tag = "Helper"
       } = config;
@@ -465,7 +469,7 @@
       const dayOk = this.clickDayCell(dialog, targetTime);
       const timeOk = await this.setTime(dialog, targetTime, timeInputCheck);
       console.log(`[${tag}] Jadwal: tanggal`, dayOk ? "OK" : "GAGAL", "| waktu", timeOk ? "OK" : "GAGAL");
-      const selesai = this.findByText(dialog, /^selesai$/i, 20);
+      const selesai = this.findByText(dialog, /^(selesai|done)$/i, 20);
       if (selesai) this.clickElement(selesai);
       await randomDelay(0.8, 1.2);
       const scope = composerRoot || document;
@@ -479,17 +483,24 @@
      * Click prev/next month buttons until the calendar shows targetTime's month.
      */
     async navigateToMonth(dialog, targetTime) {
-      const targetLabel = `${this.MONTHS_ID[targetTime.getMonth()]} ${targetTime.getFullYear()}`;
+      const mIdx = targetTime.getMonth();
+      const year = targetTime.getFullYear();
+      const targetLabelId = `${this.MONTHS_ID[mIdx]} ${year}`;
+      const targetLabelEn = `${this.MONTHS_EN[mIdx]} ${year}`;
       for (let i = 0; i < 24; i++) {
-        if ((dialog.textContent || "").includes(targetLabel)) return true;
-        const m = (dialog.textContent || "").match(/([A-Za-z]+)\s+(\d{4})/);
+        const text = dialog.textContent || "";
+        if (text.includes(targetLabelId) || text.includes(targetLabelEn)) return true;
+        const m = text.match(/([A-Za-z]+)\s+(\d{4})/);
         if (!m) return false;
-        const curIdx = this.MONTHS_ID.findIndex((name) => name.toLowerCase() === m[1].toLowerCase());
+        let curIdx = this.MONTHS_ID.findIndex((name) => name.toLowerCase() === m[1].toLowerCase());
+        if (curIdx === -1) {
+          curIdx = this.MONTHS_EN.findIndex((name) => name.toLowerCase() === m[1].toLowerCase());
+        }
         const curYear = parseInt(m[2], 10);
         if (curIdx === -1 || isNaN(curYear)) return false;
         const curTotal = curYear * 12 + curIdx;
         const targetTotal = targetTime.getFullYear() * 12 + targetTime.getMonth();
-        const btn = curTotal < targetTotal ? dialog.querySelector('button[aria-label="Bulan Berikutnya"], button[aria-label*="Bulan Berikutnya"]') : dialog.querySelector('button[aria-label="Bulan Sebelumnya"], button[aria-label*="Bulan Sebelumnya"]');
+        const btn = curTotal < targetTotal ? dialog.querySelector('button[aria-label*="Bulan Berikutnya" i], button[aria-label*="Next month" i], button[aria-label*="Next" i]') : dialog.querySelector('button[aria-label*="Bulan Sebelumnya" i], button[aria-label*="Previous month" i], button[aria-label*="Previous" i]');
         if (!btn) return false;
         this.clickElement(btn);
         await randomDelay(0.4, 0.7);
@@ -497,26 +508,27 @@
       return false;
     },
     /**
-     * Click the calendar cell matching targetTime's day. Tries, in order: an
-     * aria-label with the full date, a text cell in Indonesian date format
-     * ("Kamis, 6 Agustus 20266"), then a bare day number inside the grid.
+     * Click the calendar cell matching targetTime's day.
      */
     clickDayCell(dialog, targetTime) {
       const d = targetTime.getDate();
-      const monthName = this.MONTHS_ID[targetTime.getMonth()];
+      const mIdx = targetTime.getMonth();
+      const monthNameId = this.MONTHS_ID[mIdx];
+      const monthNameEn = this.MONTHS_EN[mIdx];
       const yearStr = String(targetTime.getFullYear());
       const candidates = Array.from(dialog.querySelectorAll('[role="gridcell"], [role="button"], td, [aria-label]'));
       for (const c of candidates) {
         const aria = c.getAttribute("aria-label") || "";
-        if (aria && aria.includes(` ${d} `) && aria.includes(monthName) && aria.includes(yearStr)) {
+        if (aria && aria.includes(` ${d} `) && (aria.includes(monthNameId) || aria.includes(monthNameEn)) && aria.includes(yearStr)) {
           this.clickElement(c);
           return true;
         }
       }
-      const dayMatch = new RegExp("(\\d{1,2})\\s+" + monthName + "\\s+" + yearStr);
+      const dayMatchId = new RegExp("(\\d{1,2})\\s+" + monthNameId + "\\s+" + yearStr, "i");
+      const dayMatchEn = new RegExp("(\\d{1,2})\\s+" + monthNameEn + "\\s+" + yearStr, "i");
       for (const c of candidates) {
         const t = c.textContent || "";
-        const m = t.match(dayMatch);
+        const m = t.match(dayMatchId) || t.match(dayMatchEn);
         if (m && parseInt(m[1], 10) === d) {
           this.clickElement(c);
           return true;
@@ -535,8 +547,7 @@
     },
     /**
      * Set the time in the schedule dialog. Handles native <input type="time">,
-     * separate hh/mm text inputs (e.g. Threads with placeholders "hh"/"mm"),
-     * and generic heuristics.
+     * separate hh/mm (or jj/mm) text inputs, and generic heuristics.
      */
     async setTime(dialog, targetTime, timeInputCheck) {
       const hh = String(targetTime.getHours()).padStart(2, "0");
@@ -548,7 +559,7 @@
         return true;
       }
       const inputs = Array.from(dialog.querySelectorAll("input"));
-      const hhInput = inputs.find((i) => /^hh$/i.test((i.placeholder || "").trim()));
+      const hhInput = inputs.find((i) => /^(hh|jj)$/i.test((i.placeholder || "").trim()));
       const mmInput = inputs.find((i) => /^mm$/i.test((i.placeholder || "").trim()));
       if (hhInput && mmInput) {
         this.setNativeValue(hhInput, hh);
@@ -560,7 +571,7 @@
       input = inputs.find((i) => {
         if (timeInputCheck && timeInputCheck(i)) return true;
         const aria = (i.getAttribute("aria-label") || "").toLowerCase();
-        return /waktu|jam|pukul|time/.test(aria) || /^\d{1,2}[:.]\d{2}/.test(i.value || "") || /jam/i.test(i.placeholder || "");
+        return /waktu|jam|pukul|time|hour/.test(aria) || /^\d{1,2}[:.]\d{2}/.test(i.value || "") || /jam|hour/i.test(i.placeholder || "");
       }) || null;
       if (!input) return false;
       this.setNativeValue(input, `${hh}:${mm}`);
@@ -723,7 +734,8 @@
       const postBtn = Array.from(composerRoot.querySelectorAll('div[role="button"], button')).find((el) => {
         const aria = (el.getAttribute("aria-label") || "").toLowerCase();
         const txt = (el.textContent || "").trim().toLowerCase();
-        return aria === "post" || aria === "posting" || aria === "kirim" || txt === "post" || txt === "posting";
+        const disabled = el.getAttribute("aria-disabled") === "true" || el.disabled;
+        return !disabled && (aria === "post" || aria === "posting" || aria === "kirim" || txt === "post" || txt === "posting" || txt === "kirim");
       });
       if (postBtn) {
         postBtn.click();
@@ -758,19 +770,21 @@
       }
       await simulateHumanTyping(mainInput, titleText, typingSpeed);
       await randomDelay(1, 2);
-      let lampirkanBtn = GeneralHelpers.findByText(document, /^Lampirkan teks$/i, 20) || GeneralHelpers.findByText(mainInput.closest('div[role="dialog"]') || document, /^Lampirkan teks$/i, 20);
-      if (!lampirkanBtn) throw new Error('Tombol "Lampirkan teks" tidak ditemukan');
+      let lampirkanBtn = GeneralHelpers.findByText(document, /^(Lampirkan teks|Attach text)$/i, 20) || GeneralHelpers.findByText(mainInput.closest('div[role="dialog"]') || document, /^(Lampirkan teks|Attach text)$/i, 20);
+      if (!lampirkanBtn) throw new Error('Tombol "Lampirkan teks" / "Attach text" tidak ditemukan');
       GeneralHelpers.clickElement(lampirkanBtn);
       await randomDelay(1, 2);
       const bodyResult = await waitForElement([
-        'div[aria-placeholder="Tuliskan lebih banyak lagi..."][contenteditable="true"]',
-        'div[data-lexical-editor="true"][aria-placeholder="Tuliskan lebih banyak lagi..."]'
+        'div[aria-placeholder*="Tuliskan lebih banyak lagi" i][contenteditable="true"]',
+        'div[aria-placeholder*="Write more" i][contenteditable="true"]',
+        'div[data-lexical-editor="true"][aria-placeholder*="Tuliskan lebih banyak lagi" i]',
+        'div[data-lexical-editor="true"][aria-placeholder*="Write more" i]'
       ], 5e3).catch(() => null);
       const bodyInput = bodyResult ? bodyResult.element : null;
       if (!bodyInput) throw new Error('Editor body "Tuliskan lebih banyak lagi..." tidak ditemukan');
       await simulateHumanTyping(bodyInput, contentText, typingSpeed);
       await randomDelay(1, 2);
-      const selesaiBtn = GeneralHelpers.findByText(document, /^Selesai$/i, 20);
+      const selesaiBtn = GeneralHelpers.findByText(document, /^(Selesai|Done)$/i, 20);
       if (selesaiBtn) {
         GeneralHelpers.clickElement(selesaiBtn);
         await randomDelay(1.5, 2.5);
@@ -805,7 +819,7 @@
       const postBtn = Array.from(composerRoot.querySelectorAll('div[role="button"], button')).find((el) => {
         const txt = (el.textContent || "").trim().toLowerCase();
         const aria = (el.getAttribute("aria-label") || "").toLowerCase();
-        const disabled = el.getAttribute("aria-disabled") === "true";
+        const disabled = el.getAttribute("aria-disabled") === "true" || el.disabled;
         return !disabled && (txt === "kirim" || txt === "post" || txt === "posting" || aria === "post" || aria === "posting" || aria === "kirim");
       });
       if (postBtn) {
@@ -823,13 +837,26 @@
       const typingSpeed = options.humanTypingSpeed || "fast";
       let mainInput = await this.getComposerInput();
       if (!mainInput) throw new Error("Input Threads tidak ditemukan. Pastikan Anda berada di halaman threads.com");
-      const tambahPollingBtn = GeneralHelpers.findByText(document, /^Tambahkan polling$/i, 20) || GeneralHelpers.findByText(mainInput.closest('div[role="dialog"]') || document, /^Tambahkan polling$/i, 20);
+      const tambahPollingBtn = GeneralHelpers.findByText(document, /^(Tambahkan polling|Add poll|Create poll|Poll)$/i, 20) || GeneralHelpers.findByText(mainInput.closest('div[role="dialog"]') || document, /^(Tambahkan polling|Add poll|Create poll|Poll)$/i, 20);
       if (!tambahPollingBtn) throw new Error('Tombol "Tambahkan polling" tidak ditemukan');
       GeneralHelpers.clickElement(tambahPollingBtn);
       await randomDelay(1, 2);
-      const parts = contentText.split("\n").map((p) => p.trim()).filter(Boolean);
-      const question = parts[0] || contentText;
-      const pollOptions = parts.slice(1);
+      let question = "";
+      let pollOptions = [];
+      if (options.threadsPollLine) {
+        pollOptions = options.threadsPollLine.split("|").map((o) => o.trim()).filter(Boolean);
+        question = contentText.trim();
+      } else {
+        const pollMatch = contentText.match(/^===POLL===\s*(.+)$/im);
+        if (pollMatch) {
+          pollOptions = pollMatch[1].split("|").map((o) => o.trim()).filter(Boolean);
+          question = contentText.replace(/^===POLL===\s*.+$/im, "").trim();
+        } else {
+          const parts = contentText.split("\n").map((p) => p.trim()).filter(Boolean);
+          question = parts[0] || contentText;
+          pollOptions = parts.slice(1);
+        }
+      }
       await simulateHumanTyping(mainInput, question, typingSpeed);
       await randomDelay(1, 2);
       const pollInputs = Array.from(document.querySelectorAll('input[dir="ltr"]')).filter((el) => {
@@ -840,7 +867,7 @@
         await simulateHumanTyping(pollInputs[i], pollOptions[i], typingSpeed);
         await randomDelay(0.5, 1);
       }
-      const durasiBtn = GeneralHelpers.findByText(document, /^Berakhir dalam/i, 20) || GeneralHelpers.findByText(mainInput.closest('div[role="dialog"]') || document, /^Berakhir dalam/i, 20);
+      const durasiBtn = GeneralHelpers.findByText(document, /^(Berakhir dalam|Ends in|Poll ends in)/i, 20) || GeneralHelpers.findByText(mainInput.closest('div[role="dialog"]') || document, /^(Berakhir dalam|Ends in|Poll ends in)/i, 20);
       if (durasiBtn) {
         GeneralHelpers.clickElement(durasiBtn);
         await randomDelay(0.5, 1);
@@ -852,7 +879,9 @@
       const composerRoot = mainInput.closest('div[role="dialog"]') || document;
       const postBtn = Array.from(composerRoot.querySelectorAll('div[role="button"], button')).find((el) => {
         const txt = (el.textContent || "").trim().toLowerCase();
-        return txt === "kirim" || txt === "post" || txt === "posting";
+        const aria = (el.getAttribute("aria-label") || "").toLowerCase();
+        const disabled = el.getAttribute("aria-disabled") === "true" || el.disabled;
+        return !disabled && (txt === "kirim" || txt === "post" || txt === "posting" || aria === "post" || aria === "posting" || aria === "kirim");
       });
       if (postBtn) {
         postBtn.click();
@@ -1220,6 +1249,20 @@
     }
     return null;
   }
+  var cachedSelfUsername = "";
+  try {
+    chrome.storage.local.get(["threadsProfileHandle"], (res) => {
+      if (res && res.threadsProfileHandle) {
+        cachedSelfUsername = res.threadsProfileHandle.trim().toLowerCase().replace(/^@/, "");
+      }
+    });
+    chrome.storage.onChanged.addListener((changes) => {
+      if (changes.threadsProfileHandle) {
+        cachedSelfUsername = (changes.threadsProfileHandle.newValue || "").trim().toLowerCase().replace(/^@/, "");
+      }
+    });
+  } catch (e) {
+  }
   function getSelfUsername() {
     const profileLinks = Array.from(document.querySelectorAll('a[href*="/@"]'));
     for (const a of profileLinks) {
@@ -1231,7 +1274,7 @@
         }
       }
     }
-    return "rasyiqi";
+    return cachedSelfUsername || "";
   }
   function extractPostText(container) {
     if (!container) return "";
@@ -1263,9 +1306,23 @@
     } catch (e) {
     }
     if (shouldResume) {
-      chrome.storage.local.set({ autoReplyRunning: true });
+      try {
+        sessionStorage.setItem("threadsAutoLoopMode", "reply");
+      } catch (e) {
+      }
+      try {
+        chrome.storage.local.set({ autoReplyRunning: true });
+      } catch (e) {
+      }
     } else {
-      chrome.storage.local.remove("autoReplyRunning");
+      try {
+        sessionStorage.removeItem("threadsAutoLoopMode");
+      } catch (e) {
+      }
+      try {
+        chrome.storage.local.remove("autoReplyRunning");
+      } catch (e) {
+      }
     }
     window.location.href = window.location.protocol + "//" + window.location.host + "/";
   }
@@ -1281,6 +1338,7 @@
       this.isRunning = false;
       this.activeTask = null;
       try {
+        sessionStorage.removeItem("threadsAutoLoopMode");
         chrome.storage.local.remove("autoReplyRunning");
       } catch (e) {
       }
@@ -1310,7 +1368,7 @@
           const authorEl = el.querySelector("a span") || el.querySelector("strong") || el.querySelector('span[class*="username"]');
           const author = (authorEl?.textContent || "").trim().slice(0, 80);
           const authorLower = author.toLowerCase();
-          if (authorLower === selfUser || authorLower === "rasyiqi") {
+          if (selfUser && authorLower === selfUser) {
             continue;
           }
           const likeBtn = findLikeButton(el);
@@ -1502,13 +1560,13 @@
       this.activeTask = "reply";
       let count = 0;
       const selfUser = getSelfUsername();
-      const processedAuthors = /* @__PURE__ */ new Set([selfUser, "rasyiqi"]);
+      const processedAuthors = new Set(selfUser ? [selfUser] : []);
       const processedPostKeys = /* @__PURE__ */ new Set();
       const processedElements = /* @__PURE__ */ new WeakSet();
       const persisted = await loadAutoReplyState();
       persisted.authors.forEach((a) => processedAuthors.add(a));
       persisted.postKeys.forEach((k) => processedPostKeys.add(k));
-      console.log(`[ThreadsInteraction] Starting continuous Auto AI-Reply (selfUser=${selfUser}, 1 reply per thread)...`);
+      console.log(`[ThreadsInteraction] Starting continuous Auto AI-Reply (selfUser=${selfUser || "unknown"}, 1 reply per thread)...`);
       while (this.isRunning && this.activeTask === "reply") {
         if (!chrome.runtime?.id) {
           console.warn("[ThreadsInteraction] Extension context invalidated. Stopping auto-reply loop.");
@@ -1520,7 +1578,7 @@
         const targetPost = posts.find((p) => {
           if (!p.replyBtn || !p.text || p.text.length < 10) return false;
           const authorKey = (p.author || "").trim().toLowerCase();
-          if (!authorKey || authorKey === selfUser || authorKey === "rasyiqi" || processedAuthors.has(authorKey)) {
+          if (!authorKey || selfUser && authorKey === selfUser || processedAuthors.has(authorKey)) {
             return false;
           }
           const postKey = `${p.author}_${p.text.slice(0, 50)}`;
@@ -1730,14 +1788,18 @@
      * This navigates from composer to post settings panel.
      */
     async clickNextButton() {
-      const btn = findByAriaLabel(document, "Berikutnya");
+      const btn = findByAriaLabel(document, "Berikutnya") || findByAriaLabel(document, "Next") || findByText(document, /^(berikutnya|next)$/i);
       if (btn) {
         GeneralHelpers.clickElement(btn);
         await waitForElement([
           'div[aria-label="Kirim"][role="button"]',
+          'div[aria-label="Post"][role="button"]',
           'div[aria-label="Kirim"][role="button"] span',
+          'div[aria-label="Post"][role="button"] span',
           'div[role="button"][aria-label="Opsi penjadwalan"]',
-          'div[role="button"][aria-label="Jadwalkan untuk nanti"]'
+          'div[role="button"][aria-label="Scheduling options"]',
+          'div[role="button"][aria-label="Jadwalkan untuk nanti"]',
+          'div[role="button"][aria-label="Schedule for later"]'
         ], 5e3).catch(() => {
         });
         await randomDelay(1, 2);
@@ -1750,7 +1812,7 @@
      * In the settings panel, "Opsi penjadwalan" is shown with "Terbitkan sekarang".
      */
     async openSchedulePanel() {
-      const scheduleSection = findByText(document, /Opsi penjadwalan/i);
+      const scheduleSection = findByText(document, /Opsi penjadwalan|Scheduling options/i) || findByAriaLabel(document, "Opsi penjadwalan") || findByAriaLabel(document, "Scheduling options");
       if (scheduleSection) {
         GeneralHelpers.clickElement(scheduleSection);
         await randomDelay(1, 2);
@@ -1762,7 +1824,7 @@
      * Click "Jadwalkan untuk nanti" inside the schedule dialog.
      */
     async clickScheduleForLater() {
-      const btn = findByAriaLabel(document, "Jadwalkan untuk nanti");
+      const btn = findByAriaLabel(document, "Jadwalkan untuk nanti") || findByAriaLabel(document, "Schedule for later") || findByText(document, /Jadwalkan untuk nanti|Schedule for later/i);
       if (btn) {
         GeneralHelpers.clickElement(btn);
         await randomDelay(1, 2);
@@ -1809,9 +1871,11 @@
         'div[aria-label="Kirim"][role="button"]',
         'div[aria-label="Post"][role="button"]',
         'div[aria-label="Kirim"][role="button"] span',
-        'div[role="button"][aria-label="Kirim"]'
+        'div[aria-label="Post"][role="button"] span',
+        'div[role="button"][aria-label="Kirim"]',
+        'div[role="button"][aria-label="Post"]'
       ], 8e3).catch(() => null);
-      const btn = res ? res.element : findByAriaLabel(document, "Kirim");
+      const btn = res ? res.element : findByAriaLabel(document, "Kirim") || findByAriaLabel(document, "Post") || findByText(document, /^(kirim|post|posting)$/i);
       if (btn) {
         GeneralHelpers.clickElement(btn);
         await randomDelay(2, 4);
@@ -1831,7 +1895,7 @@
       await randomDelay(1, 2);
       const nextClicked = await this.clickNextButton();
       if (!nextClicked) {
-        const postBtn = findByAriaLabel(document, "Kirim");
+        const postBtn = findByAriaLabel(document, "Kirim") || findByAriaLabel(document, "Post") || findByText(document, /^(kirim|post|posting)$/i);
         if (postBtn) {
           GeneralHelpers.clickElement(postBtn);
           await randomDelay(2, 4);
@@ -2247,6 +2311,20 @@
     await randomDelay(0.5, 0.8);
     return true;
   }
+  function loadFbProcessedAuthors() {
+    try {
+      const raw = sessionStorage.getItem("fbProcessedAuthors");
+      return new Set(raw ? JSON.parse(raw) : []);
+    } catch (e) {
+      return /* @__PURE__ */ new Set();
+    }
+  }
+  function saveFbProcessedAuthors(set) {
+    try {
+      sessionStorage.setItem("fbProcessedAuthors", JSON.stringify(Array.from(set).slice(-500)));
+    } catch (e) {
+    }
+  }
   var FacebookInteraction = {
     name: "FacebookInteraction",
     isRunning: false,
@@ -2254,6 +2332,10 @@
     async stop() {
       this.isRunning = false;
       this.activeTask = null;
+      try {
+        sessionStorage.removeItem("fbAutoLoopMode");
+      } catch (e) {
+      }
       console.log("[FacebookInteraction] Stopped.");
     },
     /**
@@ -2324,8 +2406,12 @@
       if (this.isRunning) await this.stop();
       this.isRunning = true;
       this.activeTask = "comment";
+      try {
+        sessionStorage.setItem("fbAutoLoopMode", "comment");
+      } catch (e) {
+      }
       let count = 0;
-      const processedAuthors = /* @__PURE__ */ new Set();
+      const processedAuthors = loadFbProcessedAuthors();
       const processedElements = /* @__PURE__ */ new WeakSet();
       let failedDialogCloses = 0;
       console.log("[FacebookInteraction] Auto-Comment started...");
@@ -2392,11 +2478,18 @@
                 await randomDelay(2.5, 4);
                 count++;
                 const author = extractFbAuthor(openDialog) || "User";
+                if (author && author.toLowerCase() !== "user") {
+                  processedAuthors.add(author.toLowerCase());
+                  saveFbProcessedAuthors(processedAuthors);
+                }
                 if (onProgressCallback) onProgressCallback({ count, author, replyText: commentText });
-                console.log("[FacebookInteraction] Comment posted! Refreshing facebook.com...");
+                console.log("[FacebookInteraction] Comment posted! Closing dialog modal and continuing feed loop...");
                 await randomDelay(1, 2);
-                window.location.href = "https://www.facebook.com";
-                return { success: true, totalProcessed: count };
+                await closeFbModal(openDialog);
+                await randomDelay(1.5, 2.5);
+                window.scrollBy({ top: 600, behavior: "smooth" });
+                await randomDelay(2, 4);
+                continue;
               } catch (e) {
                 console.warn("[FacebookInteraction] Error commenting on dialog:", e);
               }
@@ -2427,7 +2520,10 @@
         console.log("[FacebookInteraction] Feed scan:", posts.length, "posts found,", target ? `target: ${target.author}` : "no target");
         if (target) {
           const authorKey = (target.author || "").trim().toLowerCase();
-          if (authorKey && authorKey !== "user") processedAuthors.add(authorKey);
+          if (authorKey && authorKey !== "user") {
+            processedAuthors.add(authorKey);
+            saveFbProcessedAuthors(processedAuthors);
+          }
           processedElements.add(target.element);
           try {
             console.log("[FacebookInteraction] Scrolling feed to target post:", target.author);
@@ -2886,6 +2982,20 @@
     });
     return followButtons;
   }
+  function loadXProcessedUrls() {
+    try {
+      const raw = sessionStorage.getItem("xProcessedUrls");
+      return new Set(raw ? JSON.parse(raw) : []);
+    } catch (e) {
+      return /* @__PURE__ */ new Set();
+    }
+  }
+  function saveXProcessedUrls(set) {
+    try {
+      sessionStorage.setItem("xProcessedUrls", JSON.stringify(Array.from(set).slice(-500)));
+    } catch (e) {
+    }
+  }
   var XInteraction = {
     name: "XInteraction",
     isRunning: false,
@@ -2893,6 +3003,11 @@
     async stop() {
       this.isRunning = false;
       this.activeTask = null;
+      try {
+        sessionStorage.removeItem("xAutoLoopMode");
+        sessionStorage.removeItem("xProcessedUrls");
+      } catch (e) {
+      }
       console.log("[XInteraction] Stopped.");
     },
     async startContinuousAutoLike(onProgressCallback) {
@@ -2927,9 +3042,13 @@
       if (this.isRunning) await this.stop();
       this.isRunning = true;
       this.activeTask = "reply";
+      try {
+        sessionStorage.setItem("xAutoLoopMode", "reply");
+      } catch (e) {
+      }
       let count = 0;
       const processedArticles = /* @__PURE__ */ new WeakSet();
-      const processedUrls = /* @__PURE__ */ new Set();
+      const processedUrls = loadXProcessedUrls();
       console.log("[XInteraction] Auto-Reply (Status Page Flow) started...");
       while (this.isRunning && this.activeTask === "reply") {
         if (!chrome.runtime?.id) {
@@ -2948,6 +3067,7 @@
           const author = authorEl ? (authorEl.textContent || "").split("@")[0].trim() : "User";
           if (input && postText && !processedUrls.has(currentUrl)) {
             processedUrls.add(currentUrl);
+            saveXProcessedUrls(processedUrls);
             console.log("[XInteraction] Target tweet found on status page:", author, postText.slice(0, 60));
             let replyText = "";
             if (generateReplyFn) replyText = await generateReplyFn(postText);
@@ -3010,7 +3130,10 @@
           processedArticles.add(target.element);
           const link = target.element.querySelector('a[href*="/status/"]');
           const href = link ? link.getAttribute("href") : "";
-          if (href) processedUrls.add(href);
+          if (href) {
+            processedUrls.add(href);
+            saveXProcessedUrls(processedUrls);
+          }
           try {
             console.log("[XInteraction] Target found:", target.author, href);
             target.element.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -3103,8 +3226,13 @@
       if (this.isRunning) await this.stop();
       this.isRunning = true;
       this.activeTask = "quote";
+      try {
+        sessionStorage.setItem("xAutoLoopMode", "quote");
+      } catch (e) {
+      }
       let count = 0;
       const processedArticles = /* @__PURE__ */ new WeakSet();
+      const processedUrls = loadXProcessedUrls();
       console.log("[XInteraction] Auto Quote Tweet started...");
       while (this.isRunning && this.activeTask === "quote") {
         if (!chrome.runtime?.id) {
@@ -3116,9 +3244,22 @@
           await randomDelay(2, 3.5);
         }
         const tweets = scanXTweets(40);
-        const target = tweets.find((t) => t.retweetBtn && t.text && t.text.length > 10 && !processedArticles.has(t.element));
+        const target = tweets.find((t) => {
+          if (!t.retweetBtn || !t.text || t.text.length < 10) return false;
+          if (processedArticles.has(t.element)) return false;
+          const link = t.element.querySelector('a[href*="/status/"]');
+          const href = link ? link.getAttribute("href") : "";
+          if (href && processedUrls.has(href)) return false;
+          return true;
+        });
         if (target) {
           processedArticles.add(target.element);
+          const link = target.element.querySelector('a[href*="/status/"]');
+          const href = link ? link.getAttribute("href") : "";
+          if (href) {
+            processedUrls.add(href);
+            saveXProcessedUrls(processedUrls);
+          }
           try {
             target.element.scrollIntoView({ behavior: "smooth", block: "center" });
             await randomDelay(1, 1.8);
@@ -3233,6 +3374,7 @@
       });
       const composerRoot = targetInput.closest('div[role="dialog"]') || targetInput.closest("article") || targetInput.closest("form") || targetInput.parentElement;
       if (composerRoot) {
+        if (composerRoot.querySelector(".ai-operator-floating-btn")) return;
         if (getComputedStyle(composerRoot).position === "static") {
           composerRoot.style.position = "relative";
         }
@@ -3337,7 +3479,8 @@
               payload: {
                 prompt: topic,
                 platform: this.platform,
-                tone: this.selectedTone
+                tone: this.selectedTone,
+                threadsFormat: "short"
               }
             }, (res) => {
               if (chrome.runtime.lastError) return reject(chrome.runtime.lastError.message);
@@ -3590,7 +3733,24 @@
         }
       });
       if (this.platformKey === "threads") {
-        chrome.storage.local.remove("autoReplyRunning");
+        const activeReplyMode = sessionStorage.getItem("threadsAutoLoopMode");
+        if (activeReplyMode === "reply") {
+          console.log("[AI Social Media Operator] Resuming Threads Auto AI-Reply after reload...");
+          setTimeout(() => {
+            this._startThreadsAutoReply();
+          }, 2e3);
+        } else {
+          chrome.storage.local.remove("autoReplyRunning");
+        }
+      }
+      if (this.platformKey === "facebook") {
+        const activeCommentMode = sessionStorage.getItem("fbAutoLoopMode");
+        if (activeCommentMode === "comment") {
+          console.log("[AI Social Media Operator] Resuming Facebook Auto-Comment after reload...");
+          setTimeout(() => {
+            this._startFbAutoComment();
+          }, 2e3);
+        }
       }
       if (this.platformKey === "x") {
         const activeReplyMode = sessionStorage.getItem("xAutoLoopMode");
@@ -3660,6 +3820,10 @@
               sendResponse({ success: true, message: "Continuous Auto-Like dimulai." });
               break;
             case "start_auto_reply": {
+              try {
+                sessionStorage.setItem("threadsAutoLoopMode", "reply");
+              } catch (e) {
+              }
               this._startThreadsAutoReply();
               sendResponse({ success: true, message: "Continuous Auto AI-Reply dimulai." });
               break;
@@ -3687,6 +3851,10 @@
               sendResponse({ success: true, message: "FB Auto-Like dimulai." });
               break;
             case "start_fb_auto_comment":
+              try {
+                sessionStorage.setItem("fbAutoLoopMode", "comment");
+              } catch (e) {
+              }
               this._startFbAutoComment();
               sendResponse({ success: true, message: "FB Auto AI-Comment dimulai." });
               break;
@@ -3763,7 +3931,12 @@
             case "stop_x_auto_follow":
             case "stop_all":
               this.interaction.stop();
-              sessionStorage.removeItem("xAutoLoopMode");
+              try {
+                sessionStorage.removeItem("threadsAutoLoopMode");
+                sessionStorage.removeItem("fbAutoLoopMode");
+                sessionStorage.removeItem("xAutoLoopMode");
+              } catch (e) {
+              }
               chrome.storage.local.remove(["autoReplyRunning", "fbAutoStoryPending", "fbAutoPersonalPending", "xAutoReplyPending", "xAutoQuotePending"]);
               sendResponse({ success: true, message: "Interaksi dihentikan." });
               break;

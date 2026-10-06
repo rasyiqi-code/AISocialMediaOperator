@@ -149,6 +149,20 @@ function findReplyButton(container) {
   return null;
 }
 
+let cachedSelfUsername = '';
+try {
+  chrome.storage.local.get(['threadsProfileHandle'], (res) => {
+    if (res && res.threadsProfileHandle) {
+      cachedSelfUsername = res.threadsProfileHandle.trim().toLowerCase().replace(/^@/, '');
+    }
+  });
+  chrome.storage.onChanged.addListener((changes) => {
+    if (changes.threadsProfileHandle) {
+      cachedSelfUsername = (changes.threadsProfileHandle.newValue || '').trim().toLowerCase().replace(/^@/, '');
+    }
+  });
+} catch (e) {}
+
 /**
  * Detect logged-in active user handle to prevent replying to self posts/comments
  */
@@ -163,7 +177,7 @@ function getSelfUsername() {
       }
     }
   }
-  return 'rasyiqi'; // fallback default user handle
+  return cachedSelfUsername || '';
 }
 
 /**
@@ -214,9 +228,11 @@ async function reloadFeedAfterReply(shouldResume = true) {
   } catch (e) {}
   if (shouldResume) {
     // Persist the "auto-reply is running" flag so content script can resume after reload
-    chrome.storage.local.set({ autoReplyRunning: true });
+    try { sessionStorage.setItem('threadsAutoLoopMode', 'reply'); } catch (e) {}
+    try { chrome.storage.local.set({ autoReplyRunning: true }); } catch (e) {}
   } else {
-    chrome.storage.local.remove('autoReplyRunning');
+    try { sessionStorage.removeItem('threadsAutoLoopMode'); } catch (e) {}
+    try { chrome.storage.local.remove('autoReplyRunning'); } catch (e) {}
   }
   // Stay on the same host (threads.net or threads.com) and go back to the home feed
   window.location.href = window.location.protocol + '//' + window.location.host + '/';
@@ -235,6 +251,7 @@ export const ThreadsInteraction = {
     this.activeTask = null;
     // Clear auto-resume flag so it never restarts on its own
     try {
+      sessionStorage.removeItem('threadsAutoLoopMode');
       chrome.storage.local.remove('autoReplyRunning');
     } catch (e) { /* extension context may be invalidated after a reload */ }
     console.log('[ThreadsInteraction] Stopped continuous interaction loop.');
@@ -274,7 +291,7 @@ export const ThreadsInteraction = {
         const authorLower = author.toLowerCase();
 
         // STRICT FILTER: Skip self posts / self comments completely!
-        if (authorLower === selfUser || authorLower === 'rasyiqi') {
+        if (selfUser && authorLower === selfUser) {
           continue;
         }
 
@@ -512,7 +529,7 @@ export const ThreadsInteraction = {
 
     let count = 0;
     const selfUser = getSelfUsername();
-    const processedAuthors = new Set([selfUser, 'rasyiqi']); // Never reply to self!
+    const processedAuthors = new Set(selfUser ? [selfUser] : []); // Never reply to self!
     const processedPostKeys = new Set();
     const processedElements = new WeakSet();
 
@@ -522,7 +539,7 @@ export const ThreadsInteraction = {
     persisted.authors.forEach(a => processedAuthors.add(a));
     persisted.postKeys.forEach(k => processedPostKeys.add(k));
 
-    console.log(`[ThreadsInteraction] Starting continuous Auto AI-Reply (selfUser=${selfUser}, 1 reply per thread)...`);
+    console.log(`[ThreadsInteraction] Starting continuous Auto AI-Reply (selfUser=${selfUser || 'unknown'}, 1 reply per thread)...`);
 
     while (this.isRunning && this.activeTask === 'reply') {
       // If the extension was reloaded, the runtime context is invalidated.
@@ -540,7 +557,7 @@ export const ThreadsInteraction = {
         
         const authorKey = (p.author || '').trim().toLowerCase();
         // Strict Rule: Exclude self posts and authors already replied to!
-        if (!authorKey || authorKey === selfUser || authorKey === 'rasyiqi' || processedAuthors.has(authorKey)) {
+        if (!authorKey || (selfUser && authorKey === selfUser) || processedAuthors.has(authorKey)) {
           return false;
         }
 

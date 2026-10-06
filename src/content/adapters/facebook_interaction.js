@@ -640,6 +640,21 @@ async function fbPerformReaction(btn, reactionChoice = 'random') {
   return true;
 }
 
+function loadFbProcessedAuthors() {
+  try {
+    const raw = sessionStorage.getItem('fbProcessedAuthors');
+    return new Set(raw ? JSON.parse(raw) : []);
+  } catch (e) {
+    return new Set();
+  }
+}
+
+function saveFbProcessedAuthors(set) {
+  try {
+    sessionStorage.setItem('fbProcessedAuthors', JSON.stringify(Array.from(set).slice(-500)));
+  } catch (e) {}
+}
+
 export const FacebookInteraction = {
   name: 'FacebookInteraction',
   isRunning: false,
@@ -648,6 +663,9 @@ export const FacebookInteraction = {
   async stop() {
     this.isRunning = false;
     this.activeTask = null;
+    try {
+      sessionStorage.removeItem('fbAutoLoopMode');
+    } catch (e) {}
     console.log('[FacebookInteraction] Stopped.');
   },
 
@@ -728,9 +746,10 @@ export const FacebookInteraction = {
     if (this.isRunning) await this.stop();
     this.isRunning = true;
     this.activeTask = 'comment';
+    try { sessionStorage.setItem('fbAutoLoopMode', 'comment'); } catch (e) {}
 
     let count = 0;
-    const processedAuthors = new Set();
+    const processedAuthors = loadFbProcessedAuthors();
     const processedElements = new WeakSet();
     let failedDialogCloses = 0;
     console.log('[FacebookInteraction] Auto-Comment started...');
@@ -817,13 +836,20 @@ export const FacebookInteraction = {
               await randomDelay(2.5, 4);
               count++;
               const author = extractFbAuthor(openDialog) || 'User';
+              if (author && author.toLowerCase() !== 'user') {
+                processedAuthors.add(author.toLowerCase());
+                saveFbProcessedAuthors(processedAuthors);
+              }
               if (onProgressCallback) onProgressCallback({ count, author, replyText: commentText });
 
-              // After successfully commenting, immediately refresh facebook.com as requested by user
-              console.log('[FacebookInteraction] Comment posted! Refreshing facebook.com...');
+              // After successfully commenting, close modal and continue feed loop
+              console.log('[FacebookInteraction] Comment posted! Closing dialog modal and continuing feed loop...');
               await randomDelay(1, 2);
-              window.location.href = 'https://www.facebook.com';
-              return { success: true, totalProcessed: count };
+              await closeFbModal(openDialog);
+              await randomDelay(1.5, 2.5);
+              window.scrollBy({ top: 600, behavior: 'smooth' });
+              await randomDelay(2, 4);
+              continue;
             } catch (e) {
               console.warn('[FacebookInteraction] Error commenting on dialog:', e);
             }
@@ -860,7 +886,10 @@ export const FacebookInteraction = {
 
       if (target) {
         const authorKey = (target.author || '').trim().toLowerCase();
-        if (authorKey && authorKey !== 'user') processedAuthors.add(authorKey);
+        if (authorKey && authorKey !== 'user') {
+          processedAuthors.add(authorKey);
+          saveFbProcessedAuthors(processedAuthors);
+        }
         processedElements.add(target.element);
 
         try {

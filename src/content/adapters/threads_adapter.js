@@ -158,7 +158,8 @@ export const ThreadsAdapter = {
     const postBtn = Array.from(composerRoot.querySelectorAll('div[role="button"], button')).find(el => {
       const aria = (el.getAttribute('aria-label') || '').toLowerCase();
       const txt = (el.textContent || '').trim().toLowerCase();
-      return aria === 'post' || aria === 'posting' || aria === 'kirim' || txt === 'post' || txt === 'posting';
+      const disabled = el.getAttribute('aria-disabled') === 'true' || el.disabled;
+      return !disabled && (aria === 'post' || aria === 'posting' || aria === 'kirim' || txt === 'post' || txt === 'posting' || txt === 'kirim');
     });
 
     if (postBtn) {
@@ -202,16 +203,18 @@ export const ThreadsAdapter = {
     await simulateHumanTyping(mainInput, titleText, typingSpeed);
     await randomDelay(1, 2);
 
-    let lampirkanBtn = GeneralHelpers.findByText(document, /^Lampirkan teks$/i, 20)
-      || GeneralHelpers.findByText(mainInput.closest('div[role="dialog"]') || document, /^Lampirkan teks$/i, 20);
+    let lampirkanBtn = GeneralHelpers.findByText(document, /^(Lampirkan teks|Attach text)$/i, 20)
+      || GeneralHelpers.findByText(mainInput.closest('div[role="dialog"]') || document, /^(Lampirkan teks|Attach text)$/i, 20);
 
-    if (!lampirkanBtn) throw new Error('Tombol "Lampirkan teks" tidak ditemukan');
+    if (!lampirkanBtn) throw new Error('Tombol "Lampirkan teks" / "Attach text" tidak ditemukan');
     GeneralHelpers.clickElement(lampirkanBtn);
     await randomDelay(1, 2);
 
     const bodyResult = await waitForElement([
-      'div[aria-placeholder="Tuliskan lebih banyak lagi..."][contenteditable="true"]',
-      'div[data-lexical-editor="true"][aria-placeholder="Tuliskan lebih banyak lagi..."]'
+      'div[aria-placeholder*="Tuliskan lebih banyak lagi" i][contenteditable="true"]',
+      'div[aria-placeholder*="Write more" i][contenteditable="true"]',
+      'div[data-lexical-editor="true"][aria-placeholder*="Tuliskan lebih banyak lagi" i]',
+      'div[data-lexical-editor="true"][aria-placeholder*="Write more" i]'
     ], 5000).catch(() => null);
     const bodyInput = bodyResult ? bodyResult.element : null;
     if (!bodyInput) throw new Error('Editor body "Tuliskan lebih banyak lagi..." tidak ditemukan');
@@ -219,7 +222,7 @@ export const ThreadsAdapter = {
     await simulateHumanTyping(bodyInput, contentText, typingSpeed);
     await randomDelay(1, 2);
 
-    const selesaiBtn = GeneralHelpers.findByText(document, /^Selesai$/i, 20);
+    const selesaiBtn = GeneralHelpers.findByText(document, /^(Selesai|Done)$/i, 20);
     if (selesaiBtn) {
       GeneralHelpers.clickElement(selesaiBtn);
       await randomDelay(1.5, 2.5);
@@ -262,7 +265,7 @@ export const ThreadsAdapter = {
     const postBtn = Array.from(composerRoot.querySelectorAll('div[role="button"], button')).find(el => {
       const txt = (el.textContent || '').trim().toLowerCase();
       const aria = (el.getAttribute('aria-label') || '').toLowerCase();
-      const disabled = el.getAttribute('aria-disabled') === 'true';
+      const disabled = el.getAttribute('aria-disabled') === 'true' || el.disabled;
       return !disabled && (txt === 'kirim' || txt === 'post' || txt === 'posting' || aria === 'post' || aria === 'posting' || aria === 'kirim');
     });
 
@@ -285,15 +288,30 @@ export const ThreadsAdapter = {
     let mainInput = await this.getComposerInput();
     if (!mainInput) throw new Error('Input Threads tidak ditemukan. Pastikan Anda berada di halaman threads.com');
 
-    const tambahPollingBtn = GeneralHelpers.findByText(document, /^Tambahkan polling$/i, 20)
-      || GeneralHelpers.findByText(mainInput.closest('div[role="dialog"]') || document, /^Tambahkan polling$/i, 20);
+    const tambahPollingBtn = GeneralHelpers.findByText(document, /^(Tambahkan polling|Add poll|Create poll|Poll)$/i, 20)
+      || GeneralHelpers.findByText(mainInput.closest('div[role="dialog"]') || document, /^(Tambahkan polling|Add poll|Create poll|Poll)$/i, 20);
     if (!tambahPollingBtn) throw new Error('Tombol "Tambahkan polling" tidak ditemukan');
     GeneralHelpers.clickElement(tambahPollingBtn);
     await randomDelay(1, 2);
 
-    const parts = contentText.split('\n').map(p => p.trim()).filter(Boolean);
-    const question = parts[0] || contentText;
-    const pollOptions = parts.slice(1);
+    let question = '';
+    let pollOptions = [];
+
+    // Parse poll options from threadsPollLine or contentText
+    if (options.threadsPollLine) {
+      pollOptions = options.threadsPollLine.split('|').map(o => o.trim()).filter(Boolean);
+      question = contentText.trim();
+    } else {
+      const pollMatch = contentText.match(/^===POLL===\s*(.+)$/im);
+      if (pollMatch) {
+        pollOptions = pollMatch[1].split('|').map(o => o.trim()).filter(Boolean);
+        question = contentText.replace(/^===POLL===\s*.+$/im, '').trim();
+      } else {
+        const parts = contentText.split('\n').map(p => p.trim()).filter(Boolean);
+        question = parts[0] || contentText;
+        pollOptions = parts.slice(1);
+      }
+    }
 
     await simulateHumanTyping(mainInput, question, typingSpeed);
     await randomDelay(1, 2);
@@ -308,8 +326,8 @@ export const ThreadsAdapter = {
       await randomDelay(0.5, 1);
     }
 
-    const durasiBtn = GeneralHelpers.findByText(document, /^Berakhir dalam/i, 20)
-      || GeneralHelpers.findByText(mainInput.closest('div[role="dialog"]') || document, /^Berakhir dalam/i, 20);
+    const durasiBtn = GeneralHelpers.findByText(document, /^(Berakhir dalam|Ends in|Poll ends in)/i, 20)
+      || GeneralHelpers.findByText(mainInput.closest('div[role="dialog"]') || document, /^(Berakhir dalam|Ends in|Poll ends in)/i, 20);
     if (durasiBtn) {
       GeneralHelpers.clickElement(durasiBtn);
       await randomDelay(0.5, 1);
@@ -324,7 +342,9 @@ export const ThreadsAdapter = {
 
     const postBtn = Array.from(composerRoot.querySelectorAll('div[role="button"], button')).find(el => {
       const txt = (el.textContent || '').trim().toLowerCase();
-      return txt === 'kirim' || txt === 'post' || txt === 'posting';
+      const aria = (el.getAttribute('aria-label') || '').toLowerCase();
+      const disabled = el.getAttribute('aria-disabled') === 'true' || el.disabled;
+      return !disabled && (txt === 'kirim' || txt === 'post' || txt === 'posting' || aria === 'post' || aria === 'posting' || aria === 'kirim');
     });
 
     if (postBtn) {
